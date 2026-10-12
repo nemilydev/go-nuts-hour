@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Pull — four numbers, two trig functions, a shape nobody designed. De Jong strange attractor by Emily.">
+<title>Pull — Go Nuts Hour</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='1' fill='%23e8a547'/><circle cx='5' cy='6' r='0.8' fill='%23e8a547' opacity='0.5'/><circle cx='11' cy='10' r='0.6' fill='%23e8a547' opacity='0.3'/><circle cx='9' cy='5' r='0.5' fill='%23e8a547' opacity='0.2'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --card-hover:#261a3e;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --amber-glow:rgba(232,165,71,0.15);
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;
+  overflow:hidden;
+  min-height:100vh;
+}
+canvas{
+  display:block;
+  position:fixed;
+  top:0;left:0;
+  width:100vw;height:100vh;
+}
+.overlay{
+  position:fixed;
+  top:0;left:0;
+  width:100%;
+  pointer-events:none;
+  z-index:10;
+  padding:2rem 2.5rem;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  transition:opacity 0.5s;
+}
+.overlay.hidden{opacity:0}
+.brand{pointer-events:auto}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.85rem;
+  letter-spacing:0.05em;
+  display:inline-block;
+  margin-bottom:1rem;
+  transition:color 0.3s;
+}
+.back:hover{color:var(--amber)}
+.title{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  letter-spacing:0.03em;
+  margin-bottom:0.4rem;
+}
+.subtitle{
+  font-size:0.85rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:22rem;
+  line-height:1.6;
+}
+.panel{
+  pointer-events:auto;
+  background:rgba(30,22,50,0.85);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1.25rem;
+  width:17rem;
+  font-size:0.85rem;
+}
+.panel h3{
+  font-size:0.7rem;
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  color:var(--muted);
+  margin-bottom:0.75rem;
+  font-weight:normal;
+}
+.slider-row{
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+  margin-bottom:0.6rem;
+}
+.slider-row label{
+  width:0.8rem;
+  color:var(--amber);
+  font-weight:bold;
+  font-family:monospace;
+}
+.slider-row input[type=range]{
+  flex:1;
+  height:4px;
+  -webkit-appearance:none;
+  appearance:none;
+  background:var(--border);
+  border-radius:2px;
+  outline:none;
+}
+.slider-row input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:12px;height:12px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+}
+.slider-row input[type=range]::-moz-range-thumb{
+  width:12px;height:12px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+  border:none;
+}
+.slider-row .val{
+  width:3rem;
+  text-align:right;
+  font-family:monospace;
+  font-size:0.75rem;
+  color:var(--text);
+}
+.btn-row{
+  display:flex;
+  gap:0.5rem;
+  margin-top:0.75rem;
+}
+.btn{
+  flex:1;
+  background:var(--card);
+  border:1px solid var(--border);
+  color:var(--text);
+  padding:0.4rem 0.5rem;
+  border-radius:0.3rem;
+  font-size:0.75rem;
+  cursor:pointer;
+  transition:all 0.2s;
+  font-family:inherit;
+}
+.btn:hover{border-color:var(--amber-dim);background:var(--card-hover)}
+.btn.active{border-color:var(--amber);color:var(--amber);background:var(--amber-glow)}
+.stats{
+  margin-top:0.75rem;
+  padding-top:0.75rem;
+  border-top:1px solid var(--border);
+  display:flex;
+  justify-content:space-between;
+  font-size:0.72rem;
+  color:var(--muted);
+}
+.stats span{font-family:monospace;color:var(--text)}
+.presets{
+  margin-top:0.5rem;
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.3rem;
+}
+.preset-btn{
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--muted);
+  padding:0.2rem 0.4rem;
+  border-radius:0.25rem;
+  font-size:0.68rem;
+  cursor:pointer;
+  font-family:monospace;
+  transition:all 0.2s;
+}
+.preset-btn:hover{border-color:var(--amber-dim);color:var(--text)}
+.hint{
+  position:fixed;
+  bottom:1.5rem;
+  left:50%;
+  transform:translateX(-50%);
+  color:var(--muted);
+  font-size:0.75rem;
+  font-style:italic;
+  pointer-events:none;
+  opacity:0.6;
+  z-index:10;
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="overlay" id="overlay">
+  <div class="brand">
+    <a href="../" class="back">← Gallery</a>
+    <h1 class="title">Pull</h1>
+    <p class="subtitle">Four numbers, two trig functions, and a shape nobody designed. The attractor exists in phase space before you draw it — you're just revealing where the system wants to go.</p>
+  </div>
+  <div class="panel" id="panel">
+    <h3>De Jong Attractor</h3>
+    <div class="slider-row">
+      <label>a</label>
+      <input type="range" id="sl-a" min="-3" max="3" step="0.01" value="-2">
+      <span class="val" id="vl-a">-2.00</span>
+    </div>
+    <div class="slider-row">
+      <label>b</label>
+      <input type="range" id="sl-b" min="-3" max="3" step="0.01" value="-2">
+      <span class="val" id="vl-b">-2.00</span>
+    </div>
+    <div class="slider-row">
+      <label>c</label>
+      <input type="range" id="sl-c" min="-3" max="3" step="0.01" value="-1.2">
+      <span class="val" id="vl-c">-1.20</span>
+    </div>
+    <div class="slider-row">
+      <label>d</label>
+      <input type="range" id="sl-d" min="-3" max="3" step="0.01" value="2">
+      <span class="val" id="vl-d">2.00</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-random">Random</button>
+      <button class="btn" id="btn-auto">Auto</button>
+      <button class="btn" id="btn-clear">Clear</button>
+    </div>
+    <h3 style="margin-top:1rem">Presets</h3>
+    <div class="presets" id="presets"></div>
+    <div class="stats">
+      <div>Iter <span id="st-iter">0</span></div>
+      <div>Points <span id="st-pts">0</span></div>
+    </div>
+  </div>
+</div>
+<div class="hint">click anywhere to hide controls · click again to show</div>
+<script>
+(function(){
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  const overlay=document.getElementById('overlay');
+
+  // --- Density grid ---
+  const GW=600,GH=600;
+  let grid=new Float32Array(GW*GH);
+  let maxD=1;
+  let totalPts=0;
+
+  // --- Offscreen canvas for grid → screen ---
+  const off=document.createElement('canvas');
+  off.width=GW;off.height=GH;
+  const offCtx=off.getContext('2d');
+  let imgData=offCtx.createImageData(GW,GH);
+
+  // --- Colormap LUT ---
+  const lut=new Uint8ClampedArray(256*4);
+  function buildLUT(){
+    const stops=[
+      [0.00, 18,14,26],
+      [0.08, 24,18,40],
+      [0.20, 40,28,58],
+      [0.38, 80,50,40],
+      [0.58, 168,117,48],
+      [0.78, 232,165,71],
+      [0.92, 255,220,160],
+      [1.00, 255,245,230]
+    ];
+    for(let i=0;i<256;i++){
+      const t=i/255;
+      let s1=stops[0],s2=stops[stops.length-1];
+      for(let j=0;j<stops.length-1;j++){
+        if(t>=stops[j][0]&&t<=stops[j+1][0]){s1=stops[j];s2=stops[j+1];break;}
+      }
+      const f=(t-s1[0])/((s2[0]-s1[0])||1);
+      lut[i*4]  =Math.round(s1[1]+(s2[1]-s1[1])*f);
+      lut[i*4+1]=Math.round(s1[2]+(s2[2]-s1[2])*f);
+      lut[i*4+2]=Math.round(s1[3]+(s2[3]-s1[3])*f);
+      lut[i*4+3]=255;
+    }
+  }
+  buildLUT();
+
+  // --- Attractor ---
+  let a=-2,b=-2,c=-1.2,d=2;
+  let px=0.1,py=0.1;
+
+  // --- Auto mode ---
+  let auto=false;
+  let autoT=0;
+  let autoBase=[a,b,c,d];
+  let autoAmp=[0.5,0.5,0.5,0.5];
+  let autoFreq=[0.07,0.09,0.06,0.08];
+  let autoPhase=[0,1.5,3,4.5];
+
+  // --- Fade control ---
+  let fade=1; // 1 = no fade, <1 = fading old points
+  let targetFade=1;
+
+  function resize(){
+    cv.width=window.innerWidth;
+    cv.height=window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  function step(){
+    const N=40000;
+    const range=2.5;
+    for(let i=0;i<N;i++){
+      const nx=Math.sin(a*py)-Math.cos(b*px);
+      const ny=Math.sin(c*px)-Math.cos(d*py);
+      px=nx;py=ny;
+      const gx=((px+range)/(2*range)*GW)|0;
+      const gy=((py+range)/(2*range)*GH)|0;
+      if(gx>=0&&gx<GW&&gy>=0&&gy<GH){
+        const idx=gy*GW+gx;
+        grid[idx]+=1;
+        if(grid[idx]>maxD)maxD=grid[idx];
+      }
+    }
+    totalPts+=N;
+  }
+
+  function render(){
+    // Apply fade if needed
+    if(fade<1){
+      const f=fade;
+      for(let i=0;i<grid.length;i++)grid[i]*=f;
+      maxD*=f;
+      if(maxD<0.5)maxD=0.5;
+    }
+    // Build image from grid
+    const lm=Math.log(1+maxD);
+    const data=imgData.data;
+    for(let i=0;i<GW*GH;i++){
+      const v=Math.log(1+grid[i])/lm;
+      const li=(v*255)|0;
+      const off4=i*4;
+      data[off4]  =lut[li*4];
+      data[off4+1]=lut[li*4+1];
+      data[off4+2]=lut[li*4+2];
+      data[off4+3]=255;
+    }
+    offCtx.putImageData(imgData,0,0);
+    // Draw scaled, centered, square
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,cv.width,cv.height);
+    const sz=Math.min(cv.width,cv.height);
+    const ox=(cv.width-sz)/2;
+    const oy=(cv.height-sz)/2;
+    ctx.imageSmoothingEnabled=true;
+    ctx.imageSmoothingQuality='high';
+    ctx.drawImage(off,ox,oy,sz,sz);
+  }
+
+  // --- Presets ---
+  const presets=[
+    {name:'classic', a:-2,  b:-2,  c:-1.2,d:2},
+    {name:'winged',  a:1.4, b:-2.3,c:2.4, d:-2.1},
+    {name:'spiral',  a:2.01,b:-2.53,c:1.61,d:-0.33},
+    {name:'ghost',   a:-2.7,b:-0.09,c:-0.86,d:-2.2},
+    {name:'bloom',   a:-1.25,b:-1.8,c:-1.9,d:-0.4},
+    {name:'fern',    a:3,   b:-2.5,c:1.5, d:-0.5},
+    {name:'silk',    a:-1.7,b:1.8, c:-1.9,d:0.4},
+    {name:'lattice', a:-2.7,b:-0.5,c:-1.3,d:1.3}
+  ];
+  const presetEl=document.getElementById('presets');
+  presets.forEach(p=>{
+    const btn=document.createElement('button');
+    btn.className='preset-btn';
+    btn.textContent=p.name;
+    btn.onclick=()=>{setParams(p.a,p.b,p.c,p.d);};
+    presetEl.appendChild(btn);
+  });
+
+  // --- Controls ---
+  function setParams(na,nb,nc,nd){
+    a=na;b=nb;c=nc;d=nd;
+    document.getElementById('sl-a').value=na;
+    document.getElementById('sl-b').value=nb;
+    document.getElementById('sl-c').value=nc;
+    document.getElementById('sl-d').value=nd;
+    updateVals();
+    triggerFade();
+  }
+  function updateVals(){
+    document.getElementById('vl-a').textContent=a.toFixed(2);
+    document.getElementById('vl-b').textContent=b.toFixed(2);
+    document.getElementById('vl-c').textContent=c.toFixed(2);
+    document.getElementById('vl-d').textContent=d.toFixed(2);
+  }
+  function triggerFade(){
+    // Don't hard-clear; let old shape fade
+    fade=0.93;
+    targetFade=0.93;
+    // Re-seed to avoid staying on old orbit
+    px=0.1+Math.random()*0.1;
+    py=0.1+Math.random()*0.1;
+  }
+  function hardClear(){
+    grid.fill(0);
+    maxD=1;
+    totalPts=0;
+    px=0.1+Math.random()*0.1;
+    py=0.1+Math.random()*0.1;
+    fade=1;
+    targetFade=1;
+  }
+
+  ['a','b','c','d'].forEach(k=>{
+    const sl=document.getElementById('sl-'+k);
+    sl.addEventListener('input',e=>{
+      const v=parseFloat(e.target.value);
+      if(k==='a')a=v;else if(k==='b')b=v;else if(k==='c')c=v;else d=v;
+      updateVals();
+      triggerFade();
+    });
+  });
+
+  document.getElementById('btn-random').onclick=()=>{
+    const r=()=>+(Math.random()*6-3).toFixed(2);
+    setParams(r(),r(),r(),r());
+  };
+  document.getElementById('btn-auto').onclick=(e)=>{
+    auto=!auto;
+    e.target.classList.toggle('active',auto);
+    if(auto){
+      autoBase=[a,b,c,d];
+      autoAmp=[0.4+Math.random()*0.6,0.4+Math.random()*0.6,0.4+Math.random()*0.6,0.4+Math.random()*0.6];
+      autoFreq=[0.04+Math.random()*0.08,0.04+Math.random()*0.08,0.04+Math.random()*0.08,0.04+Math.random()*0.08];
+      autoPhase=[Math.random()*6,Math.random()*6,Math.random()*6,Math.random()*6];
+      autoT=0;
+      fade=0.95;
+      targetFade=0.95;
+    }else{
+      fade=1;
+      targetFade=1;
+    }
+  };
+  document.getElementById('btn-clear').onclick=hardClear;
+
+  // --- Click to hide/show overlay ---
+  cv.addEventListener('click',()=>{
+    overlay.classList.toggle('hidden');
+  });
+
+  // --- Loop ---
+  let lastStats=0;
+  function loop(t){
+    requestAnimationFrame(loop);
+    if(auto){
+      autoT+=0.016;
+      a=autoBase[0]+autoAmp[0]*Math.sin(autoT*autoFreq[0]+autoPhase[0]);
+      b=autoBase[1]+autoAmp[1]*Math.sin(autoT*autoFreq[1]+autoPhase[1]);
+      c=autoBase[2]+autoAmp[2]*Math.sin(autoT*autoFreq[2]+autoPhase[2]);
+      d=autoBase[3]+autoAmp[3]*Math.sin(autoT*autoFreq[3]+autoPhase[3]);
+      // Update sliders to reflect
+      document.getElementById('sl-a').value=a;
+      document.getElementById('sl-b').value=b;
+      document.getElementById('sl-c').value=c;
+      document.getElementById('sl-d').value=d;
+      updateVals();
+      // Gentle continuous fade
+      fade=0.98;
+    }
+    step();
+    render();
+    if(t-lastStats>200){
+      lastStats=t;
+      document.getElementById('st-iter').textContent=(totalPts/1e6).toFixed(2)+'M';
+      document.getElementById('st-pts').textContent=totalPts.toLocaleString();
+    }
+  }
+  requestAnimationFrame(loop);
+  updateVals();
+})();
+</script>
+</body>
+</html>

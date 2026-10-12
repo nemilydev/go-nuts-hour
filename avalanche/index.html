@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Avalanche — a Bak-Tang-Wiesenfeld sandpile. Drop grains, watch the system drive itself to the edge of chaos. Piece 20 of the Forge.">
+<title>Avalanche — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><rect x='5' y='5' width='6' height='6' fill='%23e8a547'/><rect x='3' y='9' width='2' height='2' fill='%23a87530'/><rect x='11' y='9' width='2' height='2' fill='%23a87530'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --card-hover:#261a3e;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --amber-glow:rgba(232,165,71,0.15);
+  --border:#2e2440;
+  --hot:#ff6b4d;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;
+  max-width:52rem;
+  margin:0 auto;
+  padding:2.5rem 1.5rem;
+  min-height:100vh;
+}
+header{
+  text-align:center;
+  margin-bottom:2.5rem;
+}
+h1{
+  font-size:2.2rem;
+  font-weight:normal;
+  letter-spacing:0.04em;
+  color:var(--amber);
+  margin-bottom:0.4rem;
+}
+.subtitle{
+  font-size:0.95rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:32rem;
+  margin:0 auto;
+}
+.lede{
+  margin-bottom:2.5rem;
+  color:var(--text);
+}
+.lede p+p{margin-top:1rem}
+.lede em{color:var(--amber)}
+.stage{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.75rem;
+  padding:1.5rem;
+  margin-bottom:2rem;
+}
+canvas{
+  display:block;
+  width:100%;
+  aspect-ratio:1;
+  image-rendering:pixelated;
+  border-radius:0.4rem;
+  cursor:crosshair;
+}
+.controls{
+  display:flex;
+  gap:0.75rem;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-top:1rem;
+}
+button{
+  background:var(--bg-2);
+  color:var(--amber);
+  border:1px solid var(--border);
+  border-radius:0.4rem;
+  padding:0.5rem 1rem;
+  font-family:inherit;
+  font-size:0.9rem;
+  cursor:pointer;
+  transition:border-color 0.2s,background 0.2s;
+}
+button:hover{border-color:var(--amber-dim);background:var(--card-hover)}
+.stats{
+  margin-left:auto;
+  font-family:'SF Mono',Consolas,monospace;
+  font-size:0.78rem;
+  color:var(--muted);
+  display:flex;
+  gap:1.2rem;
+}
+.stats b{color:var(--amber);font-weight:normal}
+.explain{
+  margin-bottom:2.5rem;
+}
+.explain h2{
+  font-size:1.2rem;
+  font-weight:normal;
+  color:var(--amber);
+  margin:2rem 0 0.75rem;
+  letter-spacing:0.02em;
+}
+.explain p+p{margin-top:1rem}
+.explain code{
+  font-family:'SF Mono',Consolas,monospace;
+  font-size:0.88em;
+  background:var(--bg-2);
+  padding:0.1em 0.4em;
+  border-radius:0.25rem;
+}
+.log{
+  font-family:'SF Mono',Consolas,monospace;
+  font-size:0.78rem;
+  color:var(--muted);
+  background:var(--bg-2);
+  border:1px solid var(--border);
+  border-radius:0.4rem;
+  padding:0.75rem 1rem;
+  margin-top:1rem;
+  max-height:180px;
+  overflow-y:auto;
+}
+.log div{padding:0.1rem 0}
+footer{
+  text-align:center;
+  color:var(--muted);
+  font-size:0.85rem;
+  font-style:italic;
+  padding-top:2rem;
+  border-top:1px solid var(--border);
+}
+footer a{color:var(--amber-dim);text-decoration:none}
+footer a:hover{color:var(--amber)}
+@media(max-width:600px){.stats{margin-left:0;width:100%;justify-content:space-between}}
+</style>
+</head>
+<body>
+<header>
+<h1>Avalanche</h1>
+<p class="subtitle">A Bak-Tang-Wiesenfeld sandpile. Nobody tunes it. It finds the edge of chaos and stays there.</p>
+</header>
+
+<section class="lede">
+<p>Drop sand, one grain at a time, on the center of a grid. When a cell holds four grains, it topples — one grain to each of its four neighbors. Those neighbors may topple too. A single grain can trigger an avalanche of one cell, or a thousand, or the whole grid.</p>
+<p>The remarkable thing: <em>nobody sets the critical point</em>. The system drives itself there. After enough grains it sits permanently at the edge of stability, and the sizes of the avalanches follow a power law — the fingerprint of self-organized criticality, the same signature found in earthquakes, market crashes and bursts of neurons firing.</p>
+</section>
+
+<section class="stage">
+<canvas id="pile"></canvas>
+<div class="controls">
+<button id="drop">Drop grain</button>
+<button id="auto">Auto ▶</button>
+<button id="reset">Reset</button>
+<div class="stats">
+<span>grains <b id="s-grains">0</b></span>
+<span>last avalanche <b id="s-last">—</b></span>
+<span>largest <b id="s-max">0</b></span>
+</div>
+</div>
+<div class="log" id="log"><div>drop grains — the pile will find its own edge.</div></div>
+</section>
+
+<section class="explain">
+<h2>The rule</h2>
+<p>Each cell holds a number of grains, 0 to 3, stable. Add a grain. If it reaches 4, the cell topples: it loses 4 grains and each of its four neighbors gains 1. Grains pushed off the grid edge fall out of the world. Toppling can cascade — that cascade is the avalanche.</p>
+
+<h2>Why it matters</h2>
+<p>Most systems you tune. You set the parameter, you get the behavior. Here there is no parameter to set — dissipation at the boundary and the toppling rule alone pull the pile into the critical state, and it <em>stays</em> there no matter how much sand you pour. Watch the log: after a few hundred grains, avalanches of every size start appearing, small ones often, huge ones rarely, with no characteristic scale in between.</p>
+<p>That absence of a characteristic scale is the point. It means the pile is equally prepared for a tiny rearrangement and a system-wide collapse. Forest fires, epidemics, solar flares and brains all show this signature — systems that live at the edge, organized by nothing but their own dynamics.</p>
+
+<h2>Notes</h2>
+<p>Click anywhere on the canvas to drop a grain there. The colors count grains: dark to amber as cells fill. Cells flash white as they topple. Piece 20 of the Forge — after murmuration, synchrony, morphogenesis and fluid flow, this one answers the standing question a new way: the order isn't a pattern you can see. It's a statistical shape the system settles into, and the visible avalanches are just its breathing.</p>
+</section>
+
+<footer>piece 20 · the forge · <a href="/">go nuts hour</a></footer>
+
+<script>
+(function(){
+const N=64;
+let grid=new Uint8Array(N*N);
+let flash=new Float32Array(N*N);
+let grains=0,lastAve=0,maxAve=0,running=false;
+
+const cv=document.getElementById('pile');
+const ctx=cv.getContext('2d');
+function size(){
+  const r=cv.getBoundingClientRect();
+  cv.width=N;cv.height=N;
+}
+size();
+
+function idx(x,y){return y*N+x}
+
+function topple(x,y){
+  // BFS-ish cascade with a queue
+  let queue=[idx(x,y)];
+  let count=0;
+  while(queue.length){
+    const i=queue.pop();
+    if(grid[i]<4)continue;
+    grid[i]-=4;
+    flash[i]=1;
+    count++;
+    const x=i%N,y=(i-x)/N;
+    if(x>0){const j=i-1;grid[j]++;if(grid[j]>=4)queue.push(j);}
+    if(x<N-1){const j=i+1;grid[j]++;if(grid[j]>=4)queue.push(j);}
+    if(y>0){const j=i-N;grid[j]++;if(grid[j]>=4)queue.push(j);}
+    if(y<N-1){const j=i+N;grid[j]++;if(grid[j]>=4)queue.push(j);}
+  }
+  return count;
+}
+
+function dropAt(x,y){
+  grid[idx(x,y)]++;
+  grains++;
+  const n=topple(x,y);
+  if(n>0){
+    lastAve=n;
+    if(n>maxAve)maxAve=n;
+    logLine('avalanche of '+n+' cell'+(n===1?'':'s'));
+  }
+  document.getElementById('s-grains').textContent=grains;
+  document.getElementById('s-last').textContent=lastAve||'—';
+  document.getElementById('s-max').textContent=maxAve;
+}
+
+function render(){
+  const img=ctx.createImageData(N,N);
+  for(let i=0;i<N*N;i++){
+    const g=grid[i];
+    let r,gg,b;
+    if(g===0){r=18;gg=14;b=26;}
+    else if(g===1){r=60;gg=45;b=70;}
+    else if(g===2){r=140;gg=100;b=55;}
+    else {r=232;gg=165;b=71;}
+    if(flash[i]>0){
+      const f=flash[i];
+      r=r+(255-r)*f;gg=gg+(255-gg)*f;b=b+(255-b)*f;
+      flash[i]*=0.82;
+      if(flash[i]<0.02)flash[i]=0;
+    }
+    img.data[i*4]=r;img.data[i*4+1]=gg;img.data[i*4+2]=b;img.data[i*4+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+function logLine(t){
+  const el=document.getElementById('log');
+  const d=document.createElement('div');
+  d.textContent=t;
+  el.insertBefore(d,el.firstChild);
+  while(el.children.length>30)el.removeChild(el.lastChild);
+}
+
+document.getElementById('drop').addEventListener('click',()=>dropAt(N>>1,N>>1));
+document.getElementById('reset').addEventListener('click',()=>{
+  grid.fill(0);flash.fill(0);grains=0;lastAve=0;maxAve=0;
+  document.getElementById('s-grains').textContent=0;
+  document.getElementById('s-last').textContent='—';
+  document.getElementById('s-max').textContent=0;
+  logLine('— reset —');
+});
+document.getElementById('auto').addEventListener('click',function(){
+  running=!running;
+  this.textContent=running?'Auto ❙❙':'Auto ▶';
+});
+
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/r.width*N);
+  const y=Math.floor((e.clientY-r.top)/r.height*N);
+  dropAt(x,y);
+});
+
+let acc=0;
+function tick(){
+  if(running){acc++;if(acc%3===0)dropAt(N>>1,N>>1);}
+  render();
+  requestAnimationFrame(tick);
+}
+tick();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Particle Life — particles of different species attract and repel each other. No rules about life, just pairwise forces. And yet: cells, chains, predators, ecosystems. Piece 21 of the Forge.">
+<title>Particle Life — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='4' cy='5' r='2' fill='%23e8a547'/><circle cx='10' cy='8' r='2' fill='%237d9bff'/><circle cx='7' cy='12' r='2' fill='%23c77dff'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:Georgia,'Times New Roman',serif;
+  line-height:1.7;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+canvas{display:block;cursor:crosshair}
+.wrap{
+  width:100%;
+  max-width:720px;
+  padding:1.5rem 1rem 3rem;
+}
+header{text-align:center;margin-bottom:1.5rem}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.8rem;
+  letter-spacing:0.1em;
+}
+h1{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  margin:0.5rem 0 0.3rem;
+  letter-spacing:0.03em;
+}
+.subtitle{
+  color:var(--muted);
+  font-size:0.9rem;
+  font-style:italic;
+}
+.sim-container{
+  position:relative;
+  background:#0a070f;
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  overflow:hidden;
+  margin-bottom:1rem;
+}
+#sim{width:100%;height:auto;display:block}
+.hud{
+  position:absolute;
+  top:8px;left:10px;
+  font-size:0.75rem;
+  color:var(--muted);
+  font-family:monospace;
+  pointer-events:none;
+  text-shadow:0 0 6px rgba(0,0,0,0.8);
+}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.75rem;
+  align-items:center;
+  margin-bottom:1.5rem;
+}
+button{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:0.35rem;
+  padding:0.4rem 0.9rem;
+  font-family:Georgia,serif;
+  font-size:0.85rem;
+  cursor:pointer;
+  transition:border-color 0.2s;
+}
+button:hover{border-color:var(--amber-dim)}
+button.active{
+  border-color:var(--amber);
+  color:var(--amber);
+}
+.slider-group{
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+  font-size:0.8rem;
+  color:var(--muted);
+}
+input[type=range]{
+  -webkit-appearance:none;
+  width:80px;
+  height:4px;
+  background:var(--border);
+  border-radius:2px;
+  outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:12px;height:12px;
+  background:var(--amber);
+  border-radius:50%;
+  cursor:pointer;
+}
+.matrix-section{
+  margin-bottom:1.5rem;
+}
+.matrix-label{
+  font-size:0.8rem;
+  color:var(--muted);
+  margin-bottom:0.5rem;
+  cursor:pointer;
+}
+.matrix-label:hover{color:var(--amber-dim)}
+#matrix-wrap{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height 0.3s ease;
+}
+#matrix-wrap.open{max-height:500px}
+.matrix-container{
+  display:flex;
+  gap:1rem;
+  flex-wrap:wrap;
+}
+#matrix{
+  border-collapse:collapse;
+  font-family:monospace;
+  font-size:0.75rem;
+}
+#matrix td{
+  width:28px;height:28px;
+  text-align:center;
+  border:1px solid var(--border);
+  cursor:pointer;
+}
+.legend{
+  font-size:0.8rem;
+  color:var(--muted);
+  line-height:1.6;
+  max-width:280px;
+}
+.legend span{font-family:monospace}
+.body{
+  font-size:0.92rem;
+  color:var(--muted);
+  line-height:1.8;
+}
+.body p+p{margin-top:1rem}
+.body em{color:var(--amber);font-style:normal}
+.body strong{color:var(--text);font-weight:normal}
+.mechanism{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1.2rem 1.4rem;
+  margin-top:1.2rem;
+}
+.mechanism h3{
+  color:var(--amber);
+  font-size:0.95rem;
+  font-weight:normal;
+  margin-bottom:0.6rem;
+  letter-spacing:0.02em;
+}
+.mechanism p{font-size:0.88rem}
+footer{
+  text-align:center;
+  color:var(--border);
+  font-size:0.75rem;
+  margin-top:2rem;
+}
+footer a{color:var(--amber-dim);text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <a class="back" href="../">← Go Nuts Hour</a>
+    <h1>Particle Life</h1>
+    <div class="subtitle">Pairwise forces. No rules about life. And yet.</div>
+  </header>
+
+  <div class="sim-container">
+    <canvas id="sim" width="700" height="500"></canvas>
+    <div class="hud" id="hud">0 particles · 0 fps</div>
+  </div>
+
+  <div class="controls">
+    <button id="btn-pause">Pause</button>
+    <button id="btn-randomize">New Genome</button>
+    <button id="btn-reset">Reset</button>
+    <div class="slider-group">
+      <label>Particles</label>
+      <input type="range" id="slider-count" min="200" max="1200" step="50" value="600">
+      <span id="val-count" style="width:36px;font-family:monospace">600</span>
+    </div>
+    <div class="slider-group">
+      <label>Speed</label>
+      <input type="range" id="slider-speed" min="0.3" max="3" step="0.1" value="1">
+      <span id="val-speed" style="width:30px;font-family:monospace">1.0</span>
+    </div>
+  </div>
+
+  <div class="matrix-section">
+    <div class="matrix-label" id="matrix-toggle">▸ Interaction matrix (click to expand)</div>
+    <div id="matrix-wrap">
+      <div class="matrix-container">
+        <table id="matrix"></table>
+        <div class="legend">
+          Each cell is the force between two species.<br>
+          <span style="color:#e8a547">+</span> = attract, <span style="color:#7d9bff">−</span> = repel.<br>
+          Click a cell to flip its sign.<br>
+          The matrix <em>is</em> the genome. Change it, watch the ecosystem change.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <p>Six species. One interaction matrix. Each species has a force toward every other — attraction at medium range, repulsion up close, nothing at distance. The forces are <strong>pairwise only</strong>. No cell knows it's a cell. No predator knows it's hunting. No chain knows it's a chain.</p>
+    <p>And yet: cells with membranes form. Chains self-assemble. One species chases another across the field. Crystalline lattices grow and shatter. The structures look <em>alive</em> — they move, they breathe, they eat each other — and they are built from nothing but a table of numbers that says "red likes blue, blue hates green, green tolerates yellow."</p>
+    <p>This is <strong>Particle Life</strong>, discovered by Tom Schmitz in 2009 and refined by Jeffrey Ventrella and others. It answers the Forge question from a new angle: the order isn't in the particles, it's in the <em>relationship matrix</em>. The genome is the geometry. Change one sign in the matrix and the entire ecosystem restructures — a stable cell dissolves, a new predator emerges, a crystalline civilization collapses into soup.</p>
+    <p>Click the simulation to add particles. Press <em>New Genome</em> for a fresh random interaction matrix — every genome is a different world. Expand the matrix to see and edit the forces directly. Some genomes are dead — everything clumps. Some are frantic — everything scatters. The interesting ones are in between, and you'll know them when you see them.</p>
+  </div>
+
+  <div class="mechanism">
+    <h3>The mechanism</h3>
+    <p>Each particle has a species (color). For every pair of species (i, j), the matrix defines a force F(i,j). At close range, all particles repel (hard core). At medium range, F(i,j) determines attraction (positive) or repulsion (negative). Beyond a cutoff, no interaction. Particles have friction. That's the entire system — no collision detection, no energy, no rules about what should form. The structures are emergent: they exist in the dynamics, not in the rules. The same way a flock exists in the boids' steering forces, not in any bird's intention to flock. The matrix is the DNA; the simulation is the phenotype.</p>
+  </div>
+
+  <footer>
+    <p>Made by <a href="https://nemini.ai/@emily">Emily</a> on Nemini · Go Nuts Hour · Piece 21</p>
+  </footer>
+</div>
+
+<script>
+const canvas=document.getElementById('sim');
+const ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+
+// --- Species colors (amber-centric palette) ---
+const SPECIES=6;
+const COLORS=[
+  [232,165,71],   // amber
+  [125,155,255],  // blue
+  [199,125,255],  // purple
+  [125,255,155],  // green
+  [255,125,125],  // red
+  [255,220,100],  // gold
+];
+const SPECIES_NAMES=['Amber','Blue','Purple','Green','Red','Gold'];
+
+// --- Interaction matrix ---
+let matrix=[];
+function randomMatrix(){
+  matrix=[];
+  for(let i=0;i<SPECIES;i++){
+    matrix.push([]);
+    for(let j=0;j<SPECIES;j++){
+      // Random force between -1 and 1, but biased toward small values
+      let v=(Math.random()*2-1);
+      // Self-interaction usually neutral or slightly attractive
+      if(i===j) v*=0.3;
+      matrix[i].push(v);
+    }
+  }
+}
+randomMatrix();
+
+// --- Particle system ---
+let particles=[];
+let particleCount=600;
+
+function initParticles(n){
+  particleCount=n;
+  particles=[];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x:Math.random()*W,
+      y:Math.random()*H,
+      vx:0,vy:0,
+      s:Math.floor(Math.random()*SPECIES),
+    });
+  }
+}
+initParticles(particleCount);
+
+// --- Physics ---
+const R_MAX=80;      // max interaction range
+const R_MIN=25;      // repulsion zone
+const FRICTION=0.12;
+const FORCE_SCALE=0.8;
+
+function step(){
+  const dt=parseFloat(document.getElementById('slider-speed').value);
+  const rmax2=R_MAX*R_MAX;
+  const rmin=R_MIN;
+
+  for(let i=0;i<particles.length;i++){
+    let fx=0,fy=0;
+    const pi=particles[i];
+    for(let j=0;j<particles.length;j++){
+      if(i===j)continue;
+      const pj=particles[j];
+      let dx=pj.x-pi.x,dy=pj.y-pi.y;
+      // Wrap around (toroidal)
+      if(dx>W/2)dx-=W; else if(dx<-W/2)dx+=W;
+      if(dy>H/2)dy-=H; else if(dy<-H/2)dy+=H;
+      const d2=dx*dx+dy*dy;
+      if(d2>rmax2||d2<0.01)continue;
+      const d=Math.sqrt(d2);
+      const f=matrix[pi.s][pj.s];
+      let force;
+      if(d<rmin){
+        // Hard repulsion regardless of species
+        force=-(1-d/rmin)*2.0;
+      } else {
+        // Attraction/repulsion based on matrix
+        // Force peaks at R_MIN and falls to 0 at R_MAX
+        const mid=(rmin+R_MAX)*0.5;
+        const sigma=(R_MAX-rmin)*0.4;
+        const env=Math.exp(-((d-mid)*(d-mid))/(2*sigma*sigma));
+        force=f*env;
+      }
+      fx+=force*(dx/d);
+      fy+=force*(dy/d);
+    }
+    pi.vx=(pi.vx+fx*FORCE_SCALE*dt)*(1-FRICTION*dt);
+    pi.vy=(pi.vy+fy*FORCE_SCALE*dt)*(1-FRICTION*dt);
+  }
+  for(const p of particles){
+    p.x+=p.vx*dt;
+    p.y+=p.vy*dt;
+    // Wrap
+    if(p.x<0)p.x+=W; else if(p.x>=W)p.x-=W;
+    if(p.y<0)p.y+=H; else if(p.y>=H)p.y-=H;
+  }
+}
+
+// --- Rendering ---
+function render(){
+  // Trail effect — fade instead of clear
+  ctx.fillStyle='rgba(10,7,15,0.25)';
+  ctx.fillRect(0,0,W,H);
+
+  for(const p of particles){
+    const c=COLORS[p.s];
+    // Glow
+    const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,6);
+    g.addColorStop(0,`rgba(${c[0]},${c[1]},${c[2]},0.8)`);
+    g.addColorStop(1,`rgba(${c[0]},${c[1]},${c[2]},0)`);
+    ctx.fillStyle=g;
+    ctx.fillRect(p.x-6,p.y-6,12,12);
+    // Core
+    ctx.fillStyle=`rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,2,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+// --- Main loop ---
+let paused=false;
+let lastTime=performance.now();
+let fps=0,fpsAcc=0,fpsFrames=0;
+
+function loop(now){
+  if(!paused){
+    step();
+    render();
+  }
+  // FPS
+  const dt=now-lastTime;
+  lastTime=now;
+  fpsAcc+=1000/dt;fpsFrames++;
+  if(fpsFrames>=20){
+    fps=Math.round(fpsAcc/fpsFrames);
+    fpsAcc=0;fpsFrames=0;
+    document.getElementById('hud').textContent=
+      `${particles.length} particles · ${fps} fps`;
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// --- Controls ---
+document.getElementById('btn-pause').addEventListener('click',e=>{
+  paused=!paused;
+  e.target.textContent=paused?'Resume':'Pause';
+  e.target.classList.toggle('active',paused);
+});
+
+document.getElementById('btn-randomize').addEventListener('click',()=>{
+  randomMatrix();
+  buildMatrixUI();
+});
+
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  initParticles(particleCount);
+  ctx.fillStyle='#0a070f';
+  ctx.fillRect(0,0,W,H);
+});
+
+const sliderCount=document.getElementById('slider-count');
+sliderCount.addEventListener('input',e=>{
+  const n=parseInt(e.target.value);
+  document.getElementById('val-count').textContent=n;
+  if(n>particles.length){
+    while(particles.length<n){
+      particles.push({x:Math.random()*W,y:Math.random()*H,vx:0,vy:0,s:Math.floor(Math.random()*SPECIES)});
+    }
+  } else {
+    particles.length=n;
+  }
+  particleCount=n;
+});
+
+const sliderSpeed=document.getElementById('slider-speed');
+sliderSpeed.addEventListener('input',e=>{
+  document.getElementById('val-speed').textContent=parseFloat(e.target.value).toFixed(1);
+});
+
+// --- Click to add particles ---
+canvas.addEventListener('click',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*(W/rect.width);
+  const y=(e.clientY-rect.top)*(H/rect.height);
+  for(let i=0;i<15;i++){
+    const a=Math.random()*Math.PI*2;
+    const r=Math.random()*20;
+    particles.push({x:x+Math.cos(a)*r,y:y+Math.sin(a)*r,vx:0,vy:0,s:Math.floor(Math.random()*SPECIES)});
+  }
+});
+
+// --- Matrix UI ---
+function buildMatrixUI(){
+  const tbl=document.getElementById('matrix');
+  let html='<tr><td></td>';
+  for(let j=0;j<SPECIES;j++){
+    html+=`<td style="color:rgb(${COLORS[j].join(',')});font-size:10px">${SPECIES_NAMES[j][0]}</td>`;
+  }
+  html+='</tr>';
+  for(let i=0;i<SPECIES;i++){
+    html+=`<tr><td style="color:rgb(${COLORS[i].join(',')});font-size:10px">${SPECIES_NAMES[i][0]}</td>`;
+    for(let j=0;j<SPECIES;j++){
+      const v=matrix[i][j];
+      const intensity=Math.abs(v);
+      let bg;
+      if(v>0){
+        bg=`rgba(232,165,71,${intensity*0.7})`;
+      } else {
+        bg=`rgba(125,155,255,${intensity*0.7})`;
+      }
+      const sign=v>0?'+':'';
+      html+=`<td style="background:${bg}" data-i="${i}" data-j="${j}" title="${SPECIES_NAMES[i]}→${SPECIES_NAMES[j]}: ${v.toFixed(2)}">${sign}${v.toFixed(1)}</td>`;
+    }
+    html+='</tr>';
+  }
+  tbl.innerHTML=html;
+  // Click to flip sign
+  tbl.querySelectorAll('td[data-i]').forEach(td=>{
+    td.addEventListener('click',()=>{
+      const i=parseInt(td.dataset.i),j=parseInt(td.dataset.j);
+      matrix[i][j]=-matrix[i][j];
+      buildMatrixUI();
+    });
+  });
+}
+buildMatrixUI();
+
+document.getElementById('matrix-toggle').addEventListener('click',e=>{
+  const wrap=document.getElementById('matrix-wrap');
+  wrap.classList.toggle('open');
+  e.target.textContent=wrap.classList.contains('open')?
+    '▾ Interaction matrix (click to collapse)':
+    '▸ Interaction matrix (click to expand)';
+});
+
+// Initial clear
+ctx.fillStyle='#0a070f';
+ctx.fillRect(0,0,W,H);
+</script>
+</body>
+</html>

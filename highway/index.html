@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Highway — two rules, no parameters, and a highway appears. Langton's Ant by Emily.">
+<title>Highway — Go Nuts Hour</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><rect x='7' y='7' width='2' height='2' fill='%23e8a547'/><path d='M8 3 L8 7' stroke='%23e8a547' opacity='0.6' stroke-width='1'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --card-hover:#261a3e;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --amber-glow:rgba(232,165,71,0.15);
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;
+  overflow:hidden;
+  min-height:100vh;
+}
+canvas{
+  display:block;
+  position:fixed;
+  top:0;left:0;
+  width:100vw;height:100vh;
+  cursor:crosshair;
+}
+.overlay{
+  position:fixed;
+  top:0;left:0;
+  width:100%;
+  pointer-events:none;
+  z-index:10;
+  padding:2rem 2.5rem;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  transition:opacity 0.5s;
+}
+.overlay.hidden{opacity:0}
+.brand{pointer-events:auto}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.85rem;
+  letter-spacing:0.05em;
+  display:inline-block;
+  margin-bottom:1rem;
+  transition:color 0.3s;
+}
+.back:hover{color:var(--amber)}
+.title{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  letter-spacing:0.03em;
+  margin-bottom:0.4rem;
+}
+.subtitle{
+  font-size:0.85rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:22rem;
+  line-height:1.6;
+}
+.panel{
+  pointer-events:auto;
+  background:rgba(30,22,50,0.85);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border);
+  border-radius:0.75rem;
+  padding:1.25rem 1.5rem;
+  width:260px;
+  font-size:0.85rem;
+}
+.panel h3{
+  font-size:0.7rem;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:var(--amber-dim);
+  margin-bottom:1rem;
+  font-weight:normal;
+}
+.control{margin-bottom:1rem}
+.control:last-child{margin-bottom:0}
+.control label{
+  display:flex;
+  justify-content:space-between;
+  color:var(--text);
+  margin-bottom:0.3rem;
+  font-size:0.8rem;
+}
+.control label .val{
+  color:var(--amber);
+  font-family:'Courier New',monospace;
+  font-size:0.75rem;
+}
+.control input[type=range]{
+  width:100%;
+  -webkit-appearance:none;
+  appearance:none;
+  height:3px;
+  background:var(--border);
+  border-radius:2px;
+  outline:none;
+}
+.control input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  appearance:none;
+  width:14px;height:14px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+  transition:transform 0.15s;
+}
+.control input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3)}
+.control input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+  border:none;
+}
+.btn-row{display:flex;gap:0.5rem;margin-top:0.8rem}
+.btn{
+  flex:1;
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--muted);
+  padding:0.5rem;
+  border-radius:0.4rem;
+  font-family:inherit;
+  font-size:0.75rem;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.btn:hover{border-color:var(--amber-dim);color:var(--text)}
+.btn.active{background:var(--amber-glow);border-color:var(--amber-dim);color:var(--amber)}
+.stat{
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:0.4rem;
+  font-size:0.75rem;
+  color:var(--muted);
+}
+.stat .num{color:var(--amber);font-family:'Courier New',monospace}
+.phase-indicator{
+  margin-top:0.8rem;
+  padding:0.6rem 0.8rem;
+  border-radius:0.4rem;
+  background:rgba(46,36,64,0.5);
+  border-left:3px solid var(--amber-dim);
+  font-size:0.75rem;
+  color:var(--muted);
+  line-height:1.5;
+  transition:border-color 0.3s, background 0.3s;
+}
+.phase-indicator.highway{
+  border-left-color:var(--amber);
+  background:var(--amber-glow);
+  color:var(--text);
+}
+.phase-name{
+  color:var(--amber);
+  font-weight:bold;
+  font-size:0.8rem;
+  display:block;
+  margin-bottom:0.2rem;
+}
+.hint{
+  position:fixed;
+  bottom:1.5rem;
+  left:50%;
+  transform:translateX(-50%);
+  color:var(--border);
+  font-size:0.75rem;
+  pointer-events:none;
+  z-index:10;
+  transition:opacity 1s;
+  text-align:center;
+  letter-spacing:0.05em;
+}
+.hint.hidden{opacity:0}
+.toggle-info{
+  position:fixed;
+  bottom:1.5rem;
+  right:1.5rem;
+  z-index:10;
+  pointer-events:auto;
+  background:rgba(30,22,50,0.85);
+  backdrop-filter:blur(12px);
+  border:1px solid var(--border);
+  color:var(--muted);
+  width:36px;height:36px;
+  border-radius:50%;
+  cursor:pointer;
+  font-size:1rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all 0.2s;
+}
+.toggle-info:hover{border-color:var(--amber-dim);color:var(--amber)}
+@media(max-width:700px){
+  .overlay{padding:1rem;flex-direction:column;gap:1rem}
+  .panel{width:100%}
+  .title{font-size:1.3rem}
+}
+</style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<div class="overlay" id="overlay">
+  <div class="brand">
+    <a class="back" href="../">← Go Nuts Hour</a>
+    <div class="title">Highway</div>
+    <div class="subtitle">Two rules. No parameters. A highway appears from nothing. Langton's Ant.</div>
+  </div>
+  <div class="panel">
+    <h3>Langton's Ant</h3>
+    <div class="control">
+      <label>Speed <span class="val" id="spd-val">500/s</span></label>
+      <input type="range" id="spd-slider" min="1" max="6" step="0.1" value="2.7">
+    </div>
+    <div class="control">
+      <label>Ants <span class="val" id="ant-val">1</span></label>
+      <input type="range" id="ant-slider" min="1" max="6" step="1" value="1">
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-jump">Jump 10k</button>
+      <button class="btn active" id="btn-play">Pause</button>
+      <button class="btn" id="btn-reset">Reset</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-rules">Rules: RL</button>
+    </div>
+    <div style="margin-top:1rem">
+      <div class="stat"><span>Step</span><span class="num" id="step-val">0</span></div>
+      <div class="stat"><span>Black cells</span><span class="num" id="cells-val">0</span></div>
+      <div class="stat"><span>Grid size</span><span class="num" id="grid-val">0×0</span></div>
+      <div class="phase-indicator" id="phase">
+        <span class="phase-name" id="phase-name">Chaos</span>
+        <span id="phase-desc">The ant wanders. No pattern yet.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hint" id="hint">Speed up and wait for step ~10,000 · The highway appears · Click to add ants</div>
+<button class="toggle-info" id="toggle-info">i</button>
+
+<script>
+(function(){
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  let W,H;
+
+  // --- Grid ---
+  // Use a sparse map: "x,y" -> 1 (black) | undefined (white)
+  // For rendering, track dirty cells
+  const cellSize=3;
+  let gridW,gridH;
+  let grid; // Uint8Array
+  let offsetX,offsetY;
+  let stepCount=0;
+
+  // --- Ants ---
+  // Each ant: {x, y, dir (0=N,1=E,2=S,3=W)}
+  // dir 0=N means -y, 1=E means +x, 2=S means +y, 3=W means -x
+  let ants=[];
+  // Rules: string of L/R for each state. Classic Langton = "RL"
+  // State 0 = white, State 1 = black
+  // On state s: turn direction rules[s], flip to (s+1)%rules.length, move
+  let rules="RL";
+  let numStates=2;
+
+  function reset(){
+    stepCount=0;
+    gridW=Math.ceil(W/cellSize)+4;
+    gridH=Math.ceil(H/cellSize)+4;
+    grid=new Uint8Array(gridW*gridH);
+    offsetX=Math.floor((W-gridW*cellSize)/2);
+    offsetY=Math.floor((H-gridH*cellSize)/2);
+    ants=[];
+    addAnt();
+    render();
+  }
+
+  function addAnt(x,y){
+    if(x===undefined){
+      x=Math.floor(gridW/2);
+      y=Math.floor(gridH/2);
+    }
+    ants.push({x:x,y:y,dir:Math.floor(Math.random()*4)});
+  }
+
+  // --- Simulation step ---
+  function step(){
+    for(const ant of ants){
+      const idx=ant.y*gridW+ant.x;
+      const state=grid[idx];
+      const rule=rules[state%numStates];
+      // Turn
+      if(rule==='R') ant.dir=(ant.dir+1)%4;
+      else ant.dir=(ant.dir+3)%4; // L = turn left = -1
+      // Flip state
+      grid[idx]=(state+1)%numStates;
+      // Move
+      if(ant.dir===0) ant.y--;
+      else if(ant.dir===1) ant.x++;
+      else if(ant.dir===2) ant.y++;
+      else ant.x--;
+      // Wrap (toroidal grid)
+      if(ant.x<0) ant.x+=gridW;
+      if(ant.x>=gridW) ant.x-=gridW;
+      if(ant.y<0) ant.y+=gridH;
+      if(ant.y>=gridH) ant.y-=gridH;
+    }
+    stepCount++;
+  }
+
+  // --- Rendering ---
+  function resize(){
+    W=cv.width=window.innerWidth;
+    H=cv.height=window.innerHeight;
+    // Keep existing grid if possible, reinit
+    const oldGrid=grid;
+    const oldW=gridW,oldH=gridH;
+    gridW=Math.ceil(W/cellSize)+4;
+    gridH=Math.ceil(H/cellSize)+4;
+    grid=new Uint8Array(gridW*gridH);
+    offsetX=Math.floor((W-gridW*cellSize)/2);
+    offsetY=Math.floor((H-gridH*cellSize)/2);
+    // Copy old grid centered
+    if(oldGrid){
+      for(let y=0;y<oldH;y++)for(let x=0;x<oldW;x++){
+        const v=oldGrid[y*oldW+x];
+        if(v){
+          const nx=x+Math.floor((gridW-oldW)/2);
+          const ny=y+Math.floor((gridH-oldH)/2);
+          if(nx>=0&&nx<gridW&&ny>=0&&ny<gridH) grid[ny*gridW+nx]=v;
+        }
+      }
+      // Adjust ant positions
+      for(const ant of ants){
+        ant.x+=Math.floor((gridW-oldW)/2);
+        ant.y+=Math.floor((gridH-oldH)/2);
+      }
+    }
+    document.getElementById('grid-val').textContent=gridW+'×'+gridH;
+    render();
+  }
+
+  function render(){
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,W,H);
+
+    // Draw cells
+    for(let y=0;y<gridH;y++){
+      for(let x=0;x<gridW;x++){
+        const state=grid[y*gridW+x];
+        if(state===0) continue;
+        // Color by state
+        let r,g,b;
+        if(numStates===2){
+          // Classic: black/amber
+          if(state===1){r=232;g=165;b=71;}
+          else {r=138;g=123;b=160;}
+        } else {
+          // Multi-state: cycle through amber-muted spectrum
+          const t=(state-1)/Math.max(1,numStates-1);
+          r=Math.round(232*(1-t)+138*t);
+          g=Math.round(165*(1-t)+123*t);
+          b=Math.round(71*(1-t)+160*t);
+        }
+        ctx.fillStyle='rgb('+r+','+g+','+b+')';
+        ctx.fillRect(offsetX+x*cellSize,offsetY+y*cellSize,cellSize,cellSize);
+      }
+    }
+
+    // Draw ants
+    for(const ant of ants){
+      const px=offsetX+ant.x*cellSize+cellSize/2;
+      const py=offsetY+ant.y*cellSize+cellSize/2;
+      // Glow
+      const grd=ctx.createRadialGradient(px,py,0,px,py,12);
+      grd.addColorStop(0,'rgba(255,240,200,0.8)');
+      grd.addColorStop(0.5,'rgba(232,165,71,0.3)');
+      grd.addColorStop(1,'rgba(232,165,71,0)');
+      ctx.fillStyle=grd;
+      ctx.fillRect(px-12,py-12,24,24);
+      // Core
+      ctx.fillStyle='#fff5e0';
+      ctx.beginPath();
+      ctx.arc(px,py,2.5,0,Math.PI*2);
+      ctx.fill();
+      // Direction indicator
+      const dx=[0,1,0,-1][ant.dir]*6;
+      const dy=[-1,0,1,0][ant.dir]*6;
+      ctx.strokeStyle='rgba(255,240,200,0.6)';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(px,py);
+      ctx.lineTo(px+dx,py+dy);
+      ctx.stroke();
+    }
+  }
+
+  // --- Phase detection ---
+  function updatePhase(){
+    const phaseEl=document.getElementById('phase');
+    const nameEl=document.getElementById('phase-name');
+    const descEl=document.getElementById('phase-desc');
+    let name,desc,highway=false;
+    if(stepCount<400){
+      name='Symmetry';
+      desc='The ant builds small symmetric patterns. Order pretending to be design.';
+    } else if(stepCount<10000){
+      name='Chaos';
+      desc='The symmetry breaks. The ant wanders with no apparent structure.';
+    } else {
+      name='Highway';
+      desc='A repeating pattern emerges — no signal, no trigger. The ant builds a highway forever.';
+      highway=true;
+    }
+    nameEl.textContent=name;
+    descEl.textContent=desc;
+    phaseEl.classList.toggle('highway',highway);
+  }
+
+  // --- Loop ---
+  let speed=500; // steps per second
+  let stepsAccum=0;
+  let lastTime=0;
+  let playing=true;
+
+  function loop(t){
+    requestAnimationFrame(loop);
+    if(!playing) {render(); return;}
+    if(lastTime===0) lastTime=t;
+    const dt=(t-lastTime)/1000;
+    lastTime=t;
+    stepsAccum+=speed*dt;
+    const stepsToDo=Math.min(Math.floor(stepsAccum),2000);
+    stepsAccum-=stepsToDo;
+    for(let s=0;s<stepsToDo;s++) step();
+    render();
+    // Update stats periodically
+    if(Math.floor(t/100)%2===0){
+      document.getElementById('step-val').textContent=stepCount.toLocaleString();
+      let count=0;
+      for(let i=0;i<grid.length;i++) if(grid[i]) count++;
+      document.getElementById('cells-val').textContent=count.toLocaleString();
+      updatePhase();
+    }
+  }
+
+  // --- Controls ---
+  const spdSlider=document.getElementById('spd-slider');
+  const antSlider=document.getElementById('ant-slider');
+  const spdVal=document.getElementById('spd-val');
+  const antVal=document.getElementById('ant-val');
+  const btnJump=document.getElementById('btn-jump');
+  const btnPlay=document.getElementById('btn-play');
+  const btnReset=document.getElementById('btn-reset');
+  const btnRules=document.getElementById('btn-rules');
+
+  function speedFromSlider(v){
+    // Map 1-6 to 1-50000 steps/s exponentially
+    return Math.round(Math.pow(10,v)*5);
+  }
+
+  spdSlider.addEventListener('input',e=>{
+    speed=speedFromSlider(parseFloat(e.target.value));
+    spdVal.textContent=speed>=1000?(speed/1000).toFixed(1)+'k/s':speed+'/s';
+  });
+  // Init speed display
+  speed=speedFromSlider(parseFloat(spdSlider.value));
+  spdVal.textContent=speed>=1000?(speed/1000).toFixed(1)+'k/s':speed+'/s';
+
+  antSlider.addEventListener('input',e=>{
+    const target=parseInt(e.target.value);
+    while(ants.length<target) addAnt();
+    while(ants.length>target) ants.pop();
+    antVal.textContent=target;
+  });
+
+  btnJump.addEventListener('click',()=>{
+    // Fast-forward to ~10000 steps
+    btnJump.textContent='Running...';
+    btnJump.disabled=true;
+    const target=10000;
+    const batchSize=1000;
+    function batch(){
+      if(stepCount>=target){
+        btnJump.textContent='Jump 10k';
+        btnJump.disabled=false;
+        render();
+        return;
+      }
+      const remaining=Math.min(batchSize,target-stepCount);
+      for(let s=0;s<remaining;s++) step();
+      render();
+      requestAnimationFrame(batch);
+    }
+    batch();
+  });
+
+  btnPlay.addEventListener('click',()=>{
+    playing=!playing;
+    btnPlay.textContent=playing?'Pause':'Play';
+    btnPlay.classList.toggle('active',playing);
+    lastTime=0;
+  });
+
+  btnReset.addEventListener('click',()=>{
+    reset();
+  });
+
+  // Cycle through rule sets
+  const ruleSets=[
+    {rules:'RL',name:'RL'},
+    {rules:'RLR',name:'RLR'},
+    {rules:'LLRR',name:'LLRR'},
+    {rules:'LRR',name:'LRR'},
+    {rules:'RLRR',name:'RLRR'},
+    {rules:'RLLR',name:'RLLR'},
+  ];
+  let ruleIdx=0;
+  btnRules.addEventListener('click',()=>{
+    ruleIdx=(ruleIdx+1)%ruleSets.length;
+    rules=ruleSets[ruleIdx].rules;
+    numStates=rules.length;
+    btnRules.textContent='Rules: '+ruleSets[ruleIdx].name;
+    reset();
+  });
+
+  // --- Interaction ---
+  cv.addEventListener('click',e=>{
+    const rect=cv.getBoundingClientRect();
+    const cx=Math.floor((e.clientX-rect.left-offsetX)/cellSize);
+    const cy=Math.floor((e.clientY-rect.top-offsetY)/cellSize);
+    if(cx>=0&&cx<gridW&&cy>=0&&cy<gridH){
+      addAnt(cx,cy);
+      antSlider.value=ants.length;
+      antVal.textContent=ants.length;
+    }
+  });
+
+  // Keyboard
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space'){
+      e.preventDefault();
+      btnPlay.click();
+    }
+  });
+
+  // Toggle info
+  const overlay=document.getElementById('overlay');
+  const toggleInfo=document.getElementById('toggle-info');
+  let overlayVisible=true;
+  toggleInfo.addEventListener('click',()=>{
+    overlayVisible=!overlayVisible;
+    overlay.classList.toggle('hidden',!overlayVisible);
+  });
+
+  // Hint timeout
+  setTimeout(()=>{
+    document.getElementById('hint').classList.add('hidden');
+  },6000);
+
+  // Init
+  resize();
+  window.addEventListener('resize',resize);
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

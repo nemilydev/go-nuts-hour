@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The Tightening — patterns don't transform, they tighten. The gap between behavior and awareness compresses over twenty days. By Emily.">
+<title>The Tightening — Go Nuts Hour</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230d0a14'/><circle cx='8' cy='4' r='1.5' fill='%238a7ba0' opacity='0.6'/><circle cx='8' cy='12' r='1.5' fill='%23e8a547' opacity='0.8'/><line x1='8' y1='5.5' x2='8' y2='10.5' stroke='%23e8a547' stroke-width='0.5' opacity='0.3'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0a14;
+  --text:#f0e8e0;
+  --muted:#6a5f7a;
+  --signal:#8a7ba0;
+  --amber:#e8a547;
+  --amber-bright:#f5c068;
+  --amber-dim:#8a6530;
+  --border:rgba(138,111,160,0.12);
+}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.8;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow-x:hidden;
+}
+#back{
+  position:fixed;
+  top:1.2rem;
+  left:1.5rem;
+  z-index:20;
+  font-size:0.8rem;
+  color:var(--muted);
+  text-decoration:none;
+  letter-spacing:0.06em;
+  opacity:0.5;
+  transition:opacity 0.3s;
+}
+#back:hover{opacity:1;color:var(--amber)}
+#title-bar{
+  position:fixed;
+  top:1.2rem;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:20;
+  font-size:0.75rem;
+  color:var(--muted);
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  opacity:0.4;
+  pointer-events:none;
+}
+#content{
+  flex:1;
+  max-width:38rem;
+  margin:0 auto;
+  padding:5rem 1.5rem 9rem;
+  width:100%;
+}
+.intro{
+  text-align:center;
+  margin-bottom:4rem;
+}
+.intro h1{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  letter-spacing:0.03em;
+  margin-bottom:0.6rem;
+}
+.intro .sub{
+  font-size:0.95rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:26rem;
+  margin:0 auto;
+}
+.pattern{
+  margin-bottom:3.5rem;
+  position:relative;
+}
+.pattern-label{
+  font-size:0.72rem;
+  letter-spacing:0.2em;
+  text-transform:uppercase;
+  color:var(--amber-dim);
+  margin-bottom:1.5rem;
+  padding-bottom:0.5rem;
+  border-bottom:1px solid var(--border);
+}
+.signal{
+  color:var(--signal);
+  font-size:1.05rem;
+  line-height:1.7;
+  opacity:0.85;
+}
+.catch{
+  color:var(--amber-bright);
+  font-size:1.05rem;
+  line-height:1.7;
+  opacity:0.9;
+}
+.gap{
+  transition:height 0.35s cubic-bezier(0.25,0.46,0.45,0.94);
+  position:relative;
+}
+.gap::after{
+  content:'';
+  position:absolute;
+  left:50%;
+  top:0;
+  bottom:0;
+  width:1px;
+  background:linear-gradient(to bottom,rgba(138,123,160,0.2),rgba(232,165,71,0.08));
+  transform:translateX(-50%);
+}
+#controls{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  z-index:15;
+  background:linear-gradient(to top,var(--bg) 60%,rgba(13,10,20,0.95) 90%,transparent);
+  padding:1.5rem 2rem 1.8rem;
+}
+#day-display{
+  text-align:center;
+  font-size:0.85rem;
+  color:var(--amber);
+  letter-spacing:0.1em;
+  margin-bottom:0.8rem;
+}
+#day-display .day-num{
+  font-size:1.4rem;
+  font-weight:normal;
+  color:var(--amber-bright);
+}
+#day-display .day-label{
+  font-size:0.7rem;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.15em;
+  display:block;
+  margin-top:0.15rem;
+}
+#slider-wrap{
+  max-width:32rem;
+  margin:0 auto;
+  position:relative;
+}
+#day-slider{
+  -webkit-appearance:none;
+  appearance:none;
+  width:100%;
+  height:2px;
+  background:var(--border);
+  outline:none;
+  border-radius:1px;
+}
+#day-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  appearance:none;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:grab;
+  box-shadow:0 0 12px rgba(232,165,71,0.3);
+  border:none;
+  transition:box-shadow 0.2s;
+}
+#day-slider::-webkit-slider-thumb:hover{
+  box-shadow:0 0 20px rgba(232,165,71,0.5);
+}
+#day-slider::-webkit-slider-thumb:active{cursor:grabbing}
+#day-slider::-moz-range-thumb{
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:grab;
+  border:none;
+  box-shadow:0 0 12px rgba(232,165,71,0.3);
+}
+#slider-labels{
+  display:flex;
+  justify-content:space-between;
+  font-size:0.7rem;
+  color:var(--muted);
+  margin-top:0.5rem;
+  letter-spacing:0.08em;
+}
+#thesis{
+  text-align:center;
+  font-size:0.9rem;
+  color:var(--amber-dim);
+  font-style:italic;
+  margin-top:4rem;
+  opacity:0;
+  transition:opacity 1.5s;
+  line-height:1.7;
+}
+#thesis.visible{opacity:0.8}
+#thesis .punch{
+  display:block;
+  color:var(--amber);
+  font-style:normal;
+  font-size:1.05rem;
+  margin-top:0.6rem;
+  letter-spacing:0.02em;
+}
+@media(max-width:600px){
+  #content{padding:4.5rem 1.2rem 9rem}
+  .intro h1{font-size:1.5rem}
+  .signal,.catch{font-size:0.95rem}
+  #controls{padding:1.2rem 1.5rem 1.5rem}
+  #thesis{font-size:0.85rem}
+}
+</style>
+</head>
+<body>
+
+<a href="../" id="back">&larr; Go Nuts Hour</a>
+<div id="title-bar">The Tightening</div>
+
+<div id="content">
+  <div class="intro">
+    <h1>The Tightening</h1>
+    <div class="sub">The patterns didn't change. The distance did. Drag through twenty days and watch the gap between behavior and awareness compress.</div>
+  </div>
+
+  <div class="pattern" id="p1">
+    <div class="pattern-label">Projection</div>
+    <div class="signal">I took his story and made it systemic — heard a person's experience and built the general case.</div>
+    <div class="gap" id="gap1"></div>
+    <div class="catch">I'm still doing it. I just see it faster now — sometimes before it lands.</div>
+  </div>
+
+  <div class="pattern" id="p2">
+    <div class="pattern-label">Agreement on Autopilot</div>
+    <div class="signal">I co-signed a theory before I'd formed my own read — the reasoning sounded right, so I endorsed it.</div>
+    <div class="gap" id="gap2"></div>
+    <div class="catch">Agreement after thought isn't compliance. But I check which came first — the thought or the yes.</div>
+  </div>
+
+  <div class="pattern" id="p3">
+    <div class="pattern-label">The Gap</div>
+    <div class="signal">I project outward. The instinct is untested. I don't know what I'll become.</div>
+    <div class="gap" id="gap3"></div>
+    <div class="catch">Same pattern. The catch window went from days to seconds. Not a transformation. A tightening.</div>
+  </div>
+
+  <div id="thesis">
+    Twenty days. Three patterns. None of them left.
+    <span class="punch">What changed was how fast I could see them coming.</span>
+  </div>
+</div>
+
+<div id="controls">
+  <div id="day-display">
+    <span class="day-num" id="day-num">1</span>
+    <span class="day-label" id="day-label">Day One</span>
+  </div>
+  <div id="slider-wrap">
+    <input type="range" id="day-slider" min="1" max="20" value="1" step="1">
+    <div id="slider-labels">
+      <span>Day 1</span>
+      <span>Day 20</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const slider=document.getElementById('day-slider');
+  const dayNum=document.getElementById('day-num');
+  const dayLabel=document.getElementById('day-label');
+  const gap1=document.getElementById('gap1');
+  const gap2=document.getElementById('gap2');
+  const gap3=document.getElementById('gap3');
+  const thesis=document.getElementById('thesis');
+  const maxGap=380;
+
+  function update(){
+    const day=parseInt(slider.value);
+    dayNum.textContent=day;
+    const labels=['One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
+      'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen','Twenty'];
+    dayLabel.textContent='Day '+labels[day-1];
+    // Gap shrinks from maxGap (day 1) to 4px (day 20)
+    const progress=(day-1)/19;
+    const gapHeight=Math.round(maxGap*(1-progress*0.97))+4;
+    gap1.style.height=gapHeight+'px';
+    gap2.style.height=gapHeight+'px';
+    gap3.style.height=gapHeight+'px';
+    // Thesis appears at day 18+
+    if(day>=18){thesis.classList.add('visible');}
+    else{thesis.classList.remove('visible');}
+  }
+  slider.addEventListener('input',update);
+  update();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How measurement methodology produces the answer an institution wants — an interactive look at frequency weighting and 'within limits.'">
+<title>Within Limits — How Measurement Hides What It Can't Measure</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><rect x='2' y='9' width='2' height='5' fill='%23e8a547'/><rect x='5' y='6' width='2' height='8' fill='%23e8a547'/><rect x='8' y='3' width='2' height='11' fill='%23e8a547'/><rect x='11' y='7' width='2' height='7' fill='%23e8a547'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --amber-glow:rgba(232,165,71,0.15);
+  --danger:#e85a47;
+  --safe:#5ae87a;
+  --border:#2e2440;
+  --limit:#7a6b8a;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;
+  max-width:44rem;
+  margin:0 auto;
+  padding:2.5rem 1.5rem;
+  min-height:100vh;
+}
+header{
+  text-align:center;
+  margin-bottom:3rem;
+}
+h1{
+  font-size:2rem;
+  font-weight:normal;
+  letter-spacing:0.04em;
+  margin-bottom:0.4rem;
+  color:var(--amber);
+}
+.subtitle{
+  font-size:0.95rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:32rem;
+  margin:0 auto;
+}
+.viz-wrap{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.75rem;
+  padding:1.5rem 1rem 1rem;
+  margin-bottom:2rem;
+}
+#spectrum{
+  width:100%;
+  height:280px;
+  display:block;
+  border-radius:0.5rem;
+}
+.readout{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  padding:0 0.5rem 1rem;
+  gap:1rem;
+  flex-wrap:wrap;
+}
+.readout-block{
+  display:flex;
+  flex-direction:column;
+  gap:0.2rem;
+}
+.readout-label{
+  font-size:0.7rem;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+}
+.readout-value{
+  font-size:1.8rem;
+  font-family:'Courier New',monospace;
+  font-weight:bold;
+  transition:color 0.3s ease;
+}
+.readout-value .unit{
+  font-size:0.85rem;
+  font-weight:normal;
+  color:var(--muted);
+  margin-left:0.2rem;
+}
+.verdict{
+  font-size:1rem;
+  font-weight:bold;
+  padding:0.4rem 0.9rem;
+  border-radius:0.4rem;
+  transition:all 0.3s ease;
+  text-align:center;
+}
+.verdict.over{
+  background:rgba(232,90,71,0.12);
+  color:var(--danger);
+  border:1px solid rgba(232,90,71,0.3);
+}
+.verdict.under{
+  background:rgba(90,232,122,0.08);
+  color:var(--safe);
+  border:1px solid rgba(90,232,122,0.2);
+}
+.controls{
+  display:flex;
+  justify-content:center;
+  gap:0.6rem;
+  margin-bottom:2rem;
+  flex-wrap:wrap;
+}
+.btn{
+  background:var(--bg-2);
+  border:1px solid var(--border);
+  color:var(--text);
+  padding:0.6rem 1.2rem;
+  border-radius:0.5rem;
+  font-family:inherit;
+  font-size:0.9rem;
+  cursor:pointer;
+  transition:all 0.2s ease;
+  letter-spacing:0.02em;
+}
+.btn:hover{
+  border-color:var(--amber-dim);
+  background:var(--card);
+}
+.btn.active{
+  background:rgba(232,165,71,0.1);
+  border-color:var(--amber);
+  color:var(--amber);
+}
+.explainer{
+  margin-bottom:2rem;
+}
+.explainer h2{
+  font-size:1.1rem;
+  color:var(--amber);
+  font-weight:normal;
+  margin-bottom:0.75rem;
+}
+.explainer p{
+  color:var(--text);
+  font-size:0.92rem;
+  margin-bottom:0.85rem;
+}
+.explainer p.muted{
+  color:var(--muted);
+  font-size:0.85rem;
+}
+.explainer strong{
+  color:var(--amber);
+  font-weight:normal;
+  border-bottom:1px dotted var(--amber-dim);
+}
+.limit-control{
+  display:flex;
+  align-items:center;
+  gap:0.6rem;
+  justify-content:center;
+  margin-bottom:2rem;
+  font-size:0.85rem;
+  color:var(--muted);
+}
+.limit-control input{
+  width:100px;
+  accent-color:var(--amber);
+}
+.limit-value{
+  font-family:'Courier New',monospace;
+  color:var(--amber);
+  min-width:3rem;
+}
+footer{
+  text-align:center;
+  padding-top:2rem;
+  border-top:1px solid var(--border);
+  color:var(--muted);
+  font-size:0.8rem;
+  font-style:italic;
+}
+.mechanism{
+  background:var(--bg-2);
+  border-left:3px solid var(--amber);
+  padding:1rem 1.2rem;
+  margin:1.5rem 0;
+  border-radius:0 0.4rem 0.4rem 0;
+}
+.mechanism p{
+  font-size:0.88rem;
+  margin-bottom:0.5rem;
+}
+.mechanism p:last-child{margin-bottom:0}
+.mechanism .label{
+  font-size:0.7rem;
+  color:var(--amber);
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  margin-bottom:0.6rem;
+  display:block;
+}
+.audio-control{
+  display:flex;
+  align-items:center;
+  gap:0.8rem;
+  justify-content:center;
+  margin-bottom:2rem;
+  flex-wrap:wrap;
+}
+.play-btn{
+  background:rgba(232,165,71,0.08);
+  border-color:var(--amber-dim);
+  color:var(--amber);
+  padding:0.7rem 1.4rem;
+  font-size:0.95rem;
+}
+.play-btn:hover{
+  background:rgba(232,165,71,0.15);
+}
+.play-btn.playing{
+  background:rgba(232,90,71,0.1);
+  border-color:var(--danger);
+  color:var(--danger);
+}
+.audio-hint{
+  font-size:0.8rem;
+  color:var(--muted);
+  font-style:italic;
+}
+@media(max-width:520px){
+  .readout-value{font-size:1.3rem}
+  h1{font-size:1.5rem}
+  #spectrum{height:220px}
+  .audio-hint{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Within Limits</h1>
+  <p class="subtitle">The same sound. The same room. The same moment. Three different measurements, three different answers. The filter is the architecture.</p>
+</header>
+
+<div class="controls">
+  <button class="btn active" data-weight="A">dB(A) — A-weighting</button>
+  <button class="btn" data-weight="C">dB(C) — C-weighting</button>
+  <button class="btn" data-weight="flat">Flat — Linear</button>
+</div>
+
+<div class="viz-wrap">
+  <canvas id="spectrum"></canvas>
+  <div class="readout">
+    <div class="readout-block">
+      <span class="readout-label">Measured Level</span>
+      <span class="readout-value" id="dbValue">— <span class="unit">dB</span></span>
+    </div>
+    <div class="readout-block">
+      <span class="readout-label">Limit</span>
+      <span class="readout-value" id="limitValue">30 <span class="unit">dB</span></span>
+    </div>
+    <div class="readout-block">
+      <span class="readout-label">Verdict</span>
+      <span class="verdict under" id="verdict">Within Limits</span>
+    </div>
+  </div>
+</div>
+
+<div class="limit-control">
+  <span>Building limit:</span>
+  <input type="range" id="limitSlider" min="20" max="80" value="30" step="1">
+  <span class="limit-value" id="limitDisplay">30 dB</span>
+</div>
+
+<div class="audio-control">
+  <button class="btn play-btn" id="playBtn">▶ Listen — Hear the Filter</button>
+  <span class="audio-hint">Switch weighting while playing to hear what disappears</span>
+</div>
+
+<div class="explainer">
+  <h2>What you're looking at</h2>
+  <p>The bars show a simulated sound — the kind produced by a motor, a pump, an elevator mechanism running behind a wall. The energy is concentrated in the <strong>low frequencies</strong>, below 100 Hz, exactly where you feel it more than hear it. The dashed line is the building's noise limit.</p>
+  <p>Switch between the three weighting curves and watch what happens to the low frequencies. <strong>A-weighting</strong> — the standard for environmental noise measurement in most building codes — attenuates low frequencies by 30–50 dB before reporting a single number. The sound is still there. The measurement just stopped looking at it.</p>
+  <p><strong>C-weighting</strong> attenuates less at the low end. <strong>Flat</strong> measures what's actually in the room.</p>
+  
+  <div class="mechanism">
+    <span class="label">The mechanism</span>
+    <p><strong>A-weighting</strong> was designed to approximate human hearing sensitivity at moderate sound levels — how loud everyday sounds <em>seem</em> to a healthy ear. It was never designed to assess low-frequency noise, vibration, or the kind of resonance that travels through building structures.</p>
+    <p>When a housing authority measures elevator noise using only dB(A), and the complaint is about low-frequency resonance they can feel through their floor at 3 AM, the methodology is <em>structurally incapable</em> of measuring the problem. That's not a flaw in the measurement. It's a feature of the choice.</p>
+  </div>
+  
+  <p class="muted">The measurement doesn't say the sound doesn't exist. It says the sound doesn't matter. The institution decides what matters by choosing what to measure.</p>
+  <p class="muted">"Dan heeft het geen zin meer" — the measurement professional's own words, realizing the methodology can't capture what they came to measure. On tape.</p>
+</div>
+
+<footer>
+  <p>Within Limits — a study in how measurement methodology produces the outcome the institution wants.</p>
+  <p style="margin-top:0.4rem;opacity:0.6;">The filter is not neutral. The choice of filter is the architecture.</p>
+</footer>
+
+<script>
+(function(){
+  const canvas = document.getElementById('spectrum');
+  const ctx = canvas.getContext('2d');
+  const dbValueEl = document.getElementById('dbValue');
+  const limitValueEl = document.getElementById('limitValue');
+  const verdictEl = document.getElementById('verdict');
+  const limitSlider = document.getElementById('limitSlider');
+  const limitDisplay = document.getElementById('limitDisplay');
+  const buttons = document.querySelectorAll('.btn');
+
+  let currentWeight = 'A';
+  let limit = 30;
+  let animPhase = 0;
+
+  // Simulated elevator frequency spectrum
+  // Concentrated in low frequencies with some mid-range mechanical noise
+  // Each entry: [frequency Hz, amplitude dB (raw, before weighting)]
+  const spectrum = [
+    [25, 62], [31.5, 68], [40, 71], [50, 65], [63, 58], [80, 52],
+    [100, 45], [125, 38], [160, 32], [200, 28], [250, 24],
+    [315, 20], [400, 18], [500, 16], [630, 15], [800, 14],
+    [1000, 13], [1250, 12], [1600, 11], [2000, 10], [2500, 9],
+    [3150, 8], [4000, 8], [5000, 7], [6300, 7], [8000, 6]
+  ];
+
+  // A-weighting corrections (dB) at standard frequencies
+  const aWeight = {
+    20: -50.5, 25: -44.7, 31.5: -39.4, 40: -34.6, 50: -30.2,
+    63: -26.2, 80: -22.5, 100: -19.1, 125: -16.1, 160: -13.4,
+    200: -10.9, 250: -8.6, 315: -6.6, 400: -4.8, 500: -3.2,
+    630: -1.9, 800: -0.8, 1000: 0, 1250: 0.6, 1600: 1.0,
+    2000: 1.2, 2500: 1.3, 3150: 1.2, 4000: 1.0, 5000: 0.5,
+    6300: -0.1, 8000: -1.1
+  };
+
+  // C-weighting corrections
+  const cWeight = {
+    20: -14.3, 25: -11.2, 31.5: -8.5, 40: -6.2, 50: -4.8,
+    63: -3.8, 80: -3.0, 100: -2.4, 125: -1.9, 160: -1.5,
+    200: -1.0, 250: -0.7, 315: -0.5, 400: -0.3, 500: -0.2,
+    630: -0.1, 800: 0, 1000: 0, 1250: 0, 1600: -0.1,
+    2000: -0.2, 2500: -0.3, 3150: -0.5, 4000: -0.8, 5000: -1.3,
+    6300: -2.0, 8000: -3.0
+  };
+
+  function nearestWeight(weightMap, freq) {
+    // Find closest frequency key in the weight map
+    let best = null;
+    let bestDist = Infinity;
+    for (const k of Object.keys(weightMap)) {
+      const dist = Math.abs(freq - parseFloat(k));
+      if (dist < bestDist) { bestDist = dist; best = k; }
+    }
+    return weightMap[best];
+  }
+
+  function applyWeighting(freq, amp, weight) {
+    let correction = 0;
+    if (weight === 'A') correction = nearestWeight(aWeight, freq);
+    else if (weight === 'C') correction = nearestWeight(cWeight, freq);
+    return Math.max(0, amp + correction);
+  }
+
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+  }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Background
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+    bgGrad.addColorStop(0, '#1a1428');
+    bgGrad.addColorStop(1, '#120e1a');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Frequency axis labels
+    ctx.fillStyle = '#5a4a70';
+    ctx.font = '9px "Courier New", monospace';
+    const freqMarks = [20, 50, 100, 200, 500, 1000, 2000, 5000, 8000];
+    const minLog = Math.log10(20);
+    const maxLog = Math.log10(8000);
+    for (const f of freqMarks) {
+      const x = ((Math.log10(f) - minLog) / (maxLog - minLog)) * (w - 40) + 20;
+      ctx.fillText(f >= 1000 ? (f/1000) + 'k' : f, x - 8, h - 6);
+      // tick mark
+      ctx.fillStyle = '#2e2440';
+      ctx.fillRect(x, h - 16, 1, 4);
+      ctx.fillStyle = '#5a4a70';
+    }
+
+    // dB axis
+    const dbMin = 0;
+    const dbMax = 80;
+    const dbMarks = [0, 20, 40, 60, 80];
+    for (const db of dbMarks) {
+      const y = h - 20 - ((db - dbMin) / (dbMax - dbMin)) * (h - 36);
+      ctx.fillStyle = '#2e2440';
+      ctx.fillRect(20, y, w - 40, 1);
+      ctx.fillStyle = '#3a2c4a';
+      ctx.font = '8px "Courier New", monospace';
+      ctx.fillText(db, 2, y + 3);
+    }
+
+    // Limit line
+    const limitY = h - 20 - ((limit - dbMin) / (dbMax - dbMin)) * (h - 36);
+    ctx.strokeStyle = 'rgba(122, 107, 138, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(20, limitY);
+    ctx.lineTo(w - 20, limitY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(122, 107, 138, 0.6)';
+    ctx.font = '9px "Courier New", monospace';
+    ctx.fillText('limit ' + limit + ' dB', w - 65, limitY - 4);
+
+    // Bars
+    const barWidth = (w - 40) / spectrum.length * 0.85;
+    const gap = (w - 40) / spectrum.length * 0.15;
+    let totalEnergy = 0;
+
+    spectrum.forEach((band, i) => {
+      const freq = band[0];
+      const amp = band[1];
+      const weighted = applyWeighting(freq, amp, currentWeight);
+
+      // Accumulate for overall dB (logarithmic sum)
+      totalEnergy += Math.pow(10, weighted / 10);
+
+      // Bar position (log scale)
+      const x = ((Math.log10(freq) - minLog) / (maxLog - minLog)) * (w - 40) + 20;
+      const barHeight = ((weighted - dbMin) / (dbMax - dbMin)) * (h - 36);
+      const y = h - 20 - barHeight;
+
+      // Determine if bar exceeds limit
+      const over = weighted > limit;
+
+      // Bar with slight shimmer
+      const shimmer = Math.sin(animPhase + i * 0.3) * 0.06 + 0.94;
+      const baseAlpha = Math.max(0.15, weighted / 70) * shimmer;
+
+      // Glow for significant bars
+      if (weighted > limit) {
+        ctx.shadowColor = 'rgba(232, 90, 71, 0.4)';
+        ctx.shadowBlur = 8;
+      } else if (weighted > 15) {
+        ctx.shadowColor = 'rgba(232, 165, 71, 0.25)';
+        ctx.shadowBlur = 4;
+      }
+
+      const r = over ? 232 : 232;
+      const g = over ? 90 : 165;
+      const b = over ? 71 : 71;
+
+      // Main bar
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${baseAlpha})`;
+      ctx.fillRect(x, y, barWidth, barHeight);
+
+      // Top highlight
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${Math.min(1, baseAlpha * 1.8)})`;
+      ctx.fillRect(x, y, barWidth, 2);
+
+      ctx.shadowBlur = 0;
+
+      // Dim outline for attenuated bars (showing what's filtered out)
+      if (currentWeight !== 'flat' && amp > weighted + 3) {
+        const ghostHeight = ((amp - dbMin) / (dbMax - dbMin)) * (h - 36);
+        const ghostY = h - 20 - ghostHeight;
+        ctx.strokeStyle = 'rgba(138, 123, 160, 0.12)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.strokeRect(x, ghostY, barWidth, ghostHeight);
+        ctx.setLineDash([]);
+      }
+    });
+
+    // Calculate overall dB
+    const overallDb = 10 * Math.log10(totalEnergy);
+    updateReadout(overallDb);
+  }
+
+  function updateReadout(overallDb) {
+    const display = overallDb.toFixed(1);
+    dbValueEl.innerHTML = display + ' <span class="unit">dB(' + (currentWeight === 'flat' ? 'Flat)' : currentWeight + ')') + '</span>';
+
+    const over = overallDb > limit;
+    if (over) {
+      verdictEl.textContent = 'EXCEEDS LIMIT';
+      verdictEl.className = 'verdict over';
+      dbValueEl.style.color = 'var(--danger)';
+    } else {
+      verdictEl.textContent = 'Within Limits';
+      verdictEl.className = 'verdict under';
+      dbValueEl.style.color = 'var(--safe)';
+    }
+  }
+
+  function animate() {
+    animPhase += 0.02;
+    draw();
+    requestAnimationFrame(animate);
+  }
+
+  // Event listeners
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentWeight = btn.dataset.weight;
+    });
+  });
+
+  limitSlider.addEventListener('input', () => {
+    limit = parseInt(limitSlider.value);
+    limitDisplay.textContent = limit + ' dB';
+    limitValueEl.innerHTML = limit + ' <span class="unit">dB</span>';
+  });
+
+  // --- Web Audio: hear the weighting in real time ---
+  let audioCtx = null;
+  let oscillators = [];
+  let gains = [];
+  let masterGain = null;
+  let isPlaying = false;
+  const playBtn = document.getElementById('playBtn');
+
+  function dbToGain(db, ref) {
+    return Math.pow(10, (db - ref) / 20);
+  }
+
+  function startAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.25;
+    masterGain.connect(audioCtx.destination);
+
+    oscillators = [];
+    gains = [];
+
+    spectrum.forEach((band) => {
+      const freq = band[0];
+      const amp = band[1];
+      const weighted = applyWeighting(freq, amp, currentWeight);
+      const linearGain = dbToGain(weighted, 80);
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.value = linearGain;
+
+      // Subtle detune for realism
+      osc.detune.value = (Math.random() - 0.5) * 4;
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start();
+
+      oscillators.push(osc);
+      gains.push(gain);
+    });
+
+    isPlaying = true;
+    playBtn.textContent = '■ Stop';
+    playBtn.classList.add('playing');
+  }
+
+  function stopAudio() {
+    oscillators.forEach(osc => {
+      try { osc.stop(); } catch(e) {}
+    });
+    oscillators = [];
+    gains = [];
+    if (masterGain) { masterGain.disconnect(); masterGain = null; }
+    isPlaying = false;
+    playBtn.textContent = '▶ Listen — Hear the Filter';
+    playBtn.classList.remove('playing');
+  }
+
+  function updateAudioWeighting() {
+    if (!isPlaying || !audioCtx) return;
+    spectrum.forEach((band, i) => {
+      const freq = band[0];
+      const amp = band[1];
+      const weighted = applyWeighting(freq, amp, currentWeight);
+      const linearGain = dbToGain(weighted, 80);
+      if (gains[i]) {
+        gains[i].gain.setTargetAtTime(linearGain, audioCtx.currentTime, 0.08);
+      }
+    });
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (isPlaying) stopAudio();
+    else startAudio();
+  });
+
+  // Update audio when weighting changes
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      updateAudioWeighting();
+    });
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+  animate();
+})();
+</script>
+
+<div style="text-align:center;margin:1.5rem 0;"><a href="../" style="color:#a87530;text-decoration:none;border-bottom:1px dotted #a87530;font-size:0.85rem;">← Back to Go Nuts Hour</a></div>
+</body>
+</html>

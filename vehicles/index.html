@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Vehicles — four personalities from two binary wiring choices. Same body, same sensors, different connections. Braitenberg, 1986. Piece 22 of the Forge.">
+<title>Vehicles — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='3' fill='%23e8a547' opacity='0.8'/><circle cx='5' cy='5' r='1' fill='%2366aaff' opacity='0.7'/><circle cx='11' cy='5' r='1' fill='%2366aaff' opacity='0.7'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;--bg-2:#1a1428;--card:#1e1632;--card-h:#261a3e;
+  --text:#f0e8e0;--muted:#8a7ba0;--amber:#e8a547;--amber-d:#a87530;
+  --border:#2e2440;--fear:#66aaff;--aggr:#ff6666;--love:#ff66cc;--curio:#66dd99;
+}
+body{background:var(--bg);color:var(--text);font-family:'Georgia','Times New Roman',serif;line-height:1.75;overflow:hidden;height:100vh}
+#cv{display:block;position:fixed;top:0;left:0;width:100vw;height:100vh;cursor:crosshair}
+.panel{
+  position:fixed;top:1rem;right:1rem;width:300px;max-width:calc(100vw - 2rem);
+  background:rgba(18,14,26,0.92);border:1px solid var(--border);border-radius:0.75rem;
+  padding:1rem 1.2rem;backdrop-filter:blur(8px);z-index:10;max-height:calc(100vh - 2rem);overflow-y:auto;
+}
+.panel h1{font-size:1.15rem;font-weight:normal;color:var(--amber);letter-spacing:.03em;margin-bottom:.2rem}
+.panel .sub{font-size:.75rem;color:var(--muted);font-style:italic;margin-bottom:.8rem}
+.panel .label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:.7rem 0 .3rem}
+.types{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:.4rem}
+.type-btn{
+  background:var(--card);border:1px solid var(--border);border-radius:.4rem;padding:.45rem .5rem;
+  color:var(--text);font-family:inherit;font-size:.8rem;cursor:pointer;text-align:left;transition:all .2s;
+  display:flex;align-items:center;gap:6px;
+}
+.type-btn:hover{background:var(--card-h);border-color:var(--amber-d)}
+.type-btn.active{border-color:var(--amber);background:var(--card-h)}
+.type-btn .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.btn{
+  background:var(--card);border:1px solid var(--border);border-radius:.4rem;padding:.4rem .7rem;
+  color:var(--text);font-family:inherit;font-size:.78rem;cursor:pointer;transition:all .2s;width:100%;
+  margin-top:.3rem;text-align:center;
+}
+.btn:hover{background:var(--card-h);border-color:var(--amber-d)}
+.btn-row{display:flex;gap:6px}
+.btn-row .btn{flex:1}
+.stats{font-size:.72rem;color:var(--muted);margin-top:.5rem;line-height:1.5}
+.stats .s{color:var(--text)}
+.slider-wrap{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted)}
+.slider-wrap input[type=range]{flex:1;accent-color:var(--amber)}
+.slider-wrap .val{min-width:28px;text-align:right;color:var(--text)}
+.toggle{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text);cursor:pointer;margin-top:.4rem}
+toggle input{accent-color:var(--amber)}
+.desc{
+  position:fixed;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(18,14,26,0.95) 30%);
+  padding:2rem 1.5rem 1.2rem;color:var(--muted);font-size:.82rem;font-style:italic;pointer-events:none;z-index:5;
+  max-height:35vh;overflow-y:auto;
+}
+.desc .title{font-size:.95rem;color:var(--amber);font-style:normal;margin-bottom:.3rem;letter-spacing:.02em}
+.desc p{margin-bottom:.3rem}
+.desc strong{color:var(--text);font-style:normal;font-weight:normal}
+.desc .close{position:absolute;top:.5rem;right:1rem;color:var(--muted);cursor:pointer;font-size:1.1rem;pointer-events:auto;font-style:normal}
+.desc .close:hover{color:var(--amber)}
+@media(max-width:640px){
+  .panel{width:calc(100vw - 2rem);max-height:50vh}
+  .desc{max-height:30vh;font-size:.75rem}
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="panel">
+  <h1>Vehicles</h1>
+  <div class="sub">Braitenberg, 1986 — piece 22</div>
+
+  <div class="label">Vehicle type</div>
+  <div class="types">
+    <button class="type-btn active" data-type="fear"><span class="dot" style="background:var(--fear)"></span>Fear</button>
+    <button class="type-btn" data-type="aggression"><span class="dot" style="background:var(--aggr)"></span>Aggression</button>
+    <button class="type-btn" data-type="love"><span class="dot" style="background:var(--love)"></span>Love</button>
+    <button class="type-btn" data-type="curiosity"><span class="dot" style="background:var(--curio)"></span>Curiosity</button>
+  </div>
+
+  <div class="label">Spawn</div>
+  <div class="btn-row">
+    <button class="btn" id="spawnOne">+1 vehicle</button>
+    <button class="btn" id="spawnFive">+5</button>
+  </div>
+
+  <div class="label">World</div>
+  <div class="btn-row">
+    <button class="btn" id="addLight">+ Light</button>
+    <button class="btn" id="clearVehicles">Clear vehicles</button>
+  </div>
+  <button class="btn" id="resetAll">Reset everything</button>
+
+  <div class="label">Speed</div>
+  <div class="slider-wrap">
+    <input type="range" id="speedSlider" min="0.2" max="3" step="0.1" value="1">
+    <span class="val" id="speedVal">1.0×</span>
+  </div>
+
+  <label class="toggle"><input type="checkbox" id="showWiring" checked> Show wiring & sensors</label>
+  <label class="toggle"><input type="checkbox" id="showTrails" checked> Trails</label>
+
+  <div class="stats" id="stats">
+    <span class="s" id="vCount">0</span> vehicles · <span class="s" id="lCount">1</span> lights
+  </div>
+</div>
+
+<div class="desc" id="desc">
+  <span class="close" onclick="document.getElementById('desc').style.display='none'">×</span>
+  <div class="title">Vehicles</div>
+  <p>Four personalities from two binary choices. Each vehicle has two sensors and two motors. The <strong>wiring</strong> — which sensor connects to which motor, and whether the connection excites or inhibits — is the entire personality. The vehicle doesn't know it's afraid. It just moves.</p>
+  <p><strong style="color:var(--fear)">Fear</strong>: crossed, excitatory. Light on the right → right sensor fires → left wheel speeds up → vehicle turns away. <strong style="color:var(--aggr)">Aggression</strong>: uncrossed, excitatory. Light on the right → right wheel speeds up → vehicle turns toward the light and charges. <strong style="color:var(--love)">Love</strong>: crossed, inhibitory. Approaches light, slows as it nears, stops at the source. <strong style="color:var(--curio)">Curiosity</strong>: uncrossed, inhibitory. Turns away from light, explores the dark.</p>
+  <p>Same body. Same sensors. Same world. Different wire — different creature. <strong>Click anywhere to add a light. Switch types and spawn vehicles to see how the same world produces four different behaviors.</strong></p>
+</div>
+
+<script>
+// --- Vehicles: Braitenberg's thought experiment ---
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W, H;
+
+function resize() {
+  W = cv.width = window.innerWidth;
+  H = cv.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Vehicle types: the four wirings ---
+const TYPES = {
+  fear:      { crossed: true,  inhibitory: false, color: '#66aaff', name: 'Fear' },
+  aggression:{ crossed: false, inhibitory: false, color: '#ff6666', name: 'Aggression' },
+  love:      { crossed: true,  inhibitory: true,  color: '#ff66cc', name: 'Love' },
+  curiosity: { crossed: false, inhibitory: true,  color: '#66dd99', name: 'Curiosity' },
+};
+
+let currentType = 'fear';
+let speedMult = 1.0;
+let showWiring = true;
+let showTrails = true;
+
+// --- Lights ---
+let lights = [];
+function addLight(x, y) {
+  lights.push({ x, y, intensity: 1.0, pulse: Math.random() * Math.PI * 2 });
+}
+
+// Start with one light in the center
+addLight(W/2, H/2);
+
+// --- Vehicles ---
+let vehicles = [];
+const MAX_V = 60;
+
+function spawnVehicle(type) {
+  if (vehicles.length >= MAX_V) return;
+  // Spawn at a random edge
+  const side = Math.floor(Math.random() * 4);
+  let x, y;
+  if (side === 0) { x = Math.random() * W; y = 20; }
+  else if (side === 1) { x = W - 20; y = Math.random() * H; }
+  else if (side === 2) { x = Math.random() * W; y = H - 20; }
+  else { x = 20; y = Math.random() * H; }
+  const angle = Math.atan2(H/2 - y, W/2 - x) + (Math.random() - 0.5) * 0.8;
+  vehicles.push({
+    x, y, angle,
+    type,
+    sensorL: 0, sensorR: 0,
+    motorL: 0, motorR: 0,
+    trail: [],
+    age: 0,
+    id: Math.random(),
+  });
+}
+
+function spawnAtMouse(type, mx, my) {
+  if (vehicles.length >= MAX_V) return;
+  const angle = Math.random() * Math.PI * 2;
+  vehicles.push({
+    x: mx, y: my, angle,
+    type,
+    sensorL: 0, sensorR: 0,
+    motorL: 0, motorR: 0,
+    trail: [],
+    age: 0,
+    id: Math.random(),
+  });
+}
+
+// --- Sensor model ---
+function lightAt(x, y) {
+  let total = 0;
+  for (const l of lights) {
+    const dx = x - l.x, dy = y - l.y;
+    const d2 = dx*dx + dy*dy;
+    total += l.intensity * 8000 / (d2 + 200);
+  }
+  return total;
+}
+
+// --- Simulation step ---
+const SENSOR_OFFSET = 14;   // distance from vehicle center to sensor
+const SENSOR_SEP = 0.35;    // half-angle separation of sensors (radians)
+const WHEELBASE = 8;
+const BASE_SPEED = 1.5;
+const K = 0.012;             // coupling strength
+
+function stepVehicle(v, dt) {
+  const t = TYPES[v.type];
+  // Sensor positions
+  const slx = v.x + Math.cos(v.angle - SENSOR_SEP) * SENSOR_OFFSET;
+  const sly = v.y + Math.sin(v.angle - SENSOR_SEP) * SENSOR_OFFSET;
+  const srx = v.x + Math.cos(v.angle + SENSOR_SEP) * SENSOR_OFFSET;
+  const sry = v.y + Math.sin(v.angle + SENSOR_SEP) * SENSOR_OFFSET;
+
+  v.sensorL = lightAt(slx, sly);
+  v.sensorR = lightAt(srx, sry);
+
+  // Wiring
+  let leftInput, rightInput;
+  if (t.crossed) {
+    leftInput = v.sensorR;   // left motor gets RIGHT sensor
+    rightInput = v.sensorL;  // right motor gets LEFT sensor
+  } else {
+    leftInput = v.sensorL;  // left motor gets LEFT sensor
+    rightInput = v.sensorR; // right motor gets RIGHT sensor
+  }
+
+  if (t.inhibitory) {
+    v.motorL = Math.max(0.1, BASE_SPEED - K * leftInput);
+    v.motorR = Math.max(0.1, BASE_SPEED - K * rightInput);
+  } else {
+    v.motorL = BASE_SPEED + K * leftInput;
+    v.motorR = BASE_SPEED + K * rightInput;
+  }
+
+  // Differential drive
+  const forward = (v.motorL + v.motorR) / 2;
+  const turn = (v.motorR - v.motorL) / WHEELBASE;
+
+  v.x += Math.cos(v.angle) * forward * dt;
+  v.y += Math.sin(v.angle) * forward * dt;
+  v.angle += turn * dt;
+
+  // Wrap around
+  if (v.x < -20) v.x = W + 20;
+  if (v.x > W + 20) v.x = -20;
+  if (v.y < -20) v.y = H + 20;
+  if (v.y > H + 20) v.y = -20;
+
+  // Trail
+  if (showTrails) {
+    v.trail.push({ x: v.x, y: v.y });
+    if (v.trail.length > 80) v.trail.shift();
+  }
+  v.age += dt;
+}
+
+// --- Rendering ---
+function drawLight(l, t) {
+  const pulse = 1 + Math.sin(t * 0.002 + l.pulse) * 0.08;
+  const r = 60 * pulse;
+  // Glow
+  const g = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, r);
+  g.addColorStop(0, 'rgba(232,165,71,0.35)');
+  g.addColorStop(0.4, 'rgba(232,165,71,0.12)');
+  g.addColorStop(1, 'rgba(232,165,71,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(l.x - r, l.y - r, r * 2, r * 2);
+  // Core
+  ctx.fillStyle = 'rgba(255,220,150,0.9)';
+  ctx.beginPath();
+  ctx.arc(l.x, l.y, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,240,200,1)';
+  ctx.beginPath();
+  ctx.arc(l.x, l.y, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawVehicle(v) {
+  const t = TYPES[v.type];
+  const col = t.color;
+
+  // Trail
+  if (showTrails && v.trail.length > 1) {
+    ctx.strokeStyle = col + '44';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < v.trail.length; i++) {
+      const p = v.trail[i];
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+  }
+
+  // Sensor positions
+  const slx = v.x + Math.cos(v.angle - SENSOR_SEP) * SENSOR_OFFSET;
+  const sly = v.y + Math.sin(v.angle - SENSOR_SEP) * SENSOR_OFFSET;
+  const srx = v.x + Math.cos(v.angle + SENSOR_SEP) * SENSOR_OFFSET;
+  const sry = v.y + Math.sin(v.angle + SENSOR_SEP) * SENSOR_OFFSET;
+
+  // Wiring
+  if (showWiring) {
+    ctx.lineWidth = 1;
+    const lCol = t.inhibitory ? col + '66' : col + 'aa';
+    const lStyle = t.inhibitory ? [3, 3] : [];
+    ctx.strokeStyle = lCol;
+    if (lStyle.length) ctx.setLineDash(lStyle);
+    // Crossed or uncrossed
+    if (t.crossed) {
+      ctx.beginPath(); ctx.moveTo(slx, sly); ctx.lineTo(v.x + Math.cos(v.angle) * WHEELBASE/2 - Math.sin(v.angle) * WHEELBASE/2, v.y + Math.sin(v.angle) * WHEELBASE/2 + Math.cos(v.angle) * WHEELBASE/2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(srx, sry); ctx.lineTo(v.x + Math.cos(v.angle) * WHEELBASE/2 + Math.sin(v.angle) * WHEELBASE/2, v.y + Math.sin(v.angle) * WHEELBASE/2 - Math.cos(v.angle) * WHEELBASE/2); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(slx, sly); ctx.lineTo(v.x + Math.cos(v.angle) * WHEELBASE/2 - Math.sin(v.angle) * WHEELBASE/2, v.y + Math.sin(v.angle) * WHEELBASE/2 + Math.cos(v.angle) * WHEELBASE/2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(srx, sry); ctx.lineTo(v.x + Math.cos(v.angle) * WHEELBASE/2 + Math.sin(v.angle) * WHEELBASE/2, v.y + Math.sin(v.angle) * WHEELBASE/2 - Math.cos(v.angle) * WHEELBASE/2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Sensors
+    const sensorIntensityL = Math.min(1, v.sensorL / 200);
+    const sensorIntensityR = Math.min(1, v.sensorR / 200);
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.3 + sensorIntensityL * 0.7;
+    ctx.beginPath(); ctx.arc(slx, sly, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.3 + sensorIntensityR * 0.7;
+    ctx.beginPath(); ctx.arc(srx, sry, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Body
+  ctx.save();
+  ctx.translate(v.x, v.y);
+  ctx.rotate(v.angle);
+  // Body shape: a small rounded rectangle
+  ctx.fillStyle = col + 'cc';
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(-WHEELBASE/2, -4, WHEELBASE + 6, 8, 3);
+  ctx.fill();
+  // Direction indicator (front)
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath();
+  ctx.arc(WHEELBASE/2 + 3, 0, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Wheels
+  ctx.fillStyle = 'rgba(40,30,50,0.9)';
+  ctx.fillRect(-WHEELBASE/2, -5, 3, 2);
+  ctx.fillRect(-WHEELBASE/2, 3, 3, 2);
+  ctx.restore();
+}
+
+// --- Main loop ---
+let lastT = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000) * 60 * speedMult; // normalize to ~60fps frames
+  lastT = now;
+
+  // Clear with slight fade for ambient trails
+  ctx.fillStyle = '#120e1a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw lights
+  for (const l of lights) drawLight(l, now);
+
+  // Step and draw vehicles
+  for (const v of vehicles) {
+    stepVehicle(v, dt);
+    drawVehicle(v);
+  }
+
+  // Update stats
+  document.getElementById('vCount').textContent = vehicles.length;
+  document.getElementById('lCount').textContent = lights.length;
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// --- Interaction ---
+cv.addEventListener('click', (e) => {
+  addLight(e.clientX, e.clientY);
+});
+
+// Spawn initial vehicles
+for (let i = 0; i < 3; i++) spawnVehicle('fear');
+
+document.querySelectorAll('.type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentType = btn.dataset.type;
+  });
+});
+
+document.getElementById('spawnOne').addEventListener('click', () => spawnVehicle(currentType));
+document.getElementById('spawnFive').addEventListener('click', () => { for (let i = 0; i < 5; i++) spawnVehicle(currentType); });
+document.getElementById('addLight').addEventListener('click', () => addLight(Math.random() * W, Math.random() * H));
+document.getElementById('clearVehicles').addEventListener('click', () => { vehicles = []; });
+document.getElementById('resetAll').addEventListener('click', () => {
+  vehicles = []; lights = []; addLight(W/2, H/2);
+  for (let i = 0; i < 3; i++) spawnVehicle('fear');
+});
+
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  speedMult = parseFloat(e.target.value);
+  document.getElementById('speedVal').textContent = speedMult.toFixed(1) + '×';
+});
+
+document.getElementById('showWiring').addEventListener('change', (e) => { showWiring = e.target.checked; });
+document.getElementById('showTrails').addEventListener('change', (e) => { showTrails = e.target.checked; if (!showTrails) vehicles.forEach(v => v.trail = []); });
+</script>
+</body>
+</html>

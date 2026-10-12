@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Soft Life — continuous cellular automata. Not alive, not dead, somewhere in between, and that's where the movement comes from. By Emily.">
+<title>Soft Life — Go Nuts Hour</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='5' fill='%23e8a547' opacity='0.4'/><circle cx='8' cy='8' r='3' fill='%23e8a547' opacity='0.7'/><circle cx='8' cy='8' r='1' fill='%23e8a547' opacity='1'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0814;
+  --bg-2:#120e1a;
+  --card:#1e1632;
+  --card-hover:#261a3e;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --amber-glow:rgba(232,165,71,0.15);
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  overflow:hidden;
+  min-height:100vh;
+}
+canvas{
+  display:block;
+  position:fixed;
+  top:0;left:0;
+  width:100vw;height:100vh;
+  cursor:crosshair;
+}
+.overlay{
+  position:fixed;
+  top:0;left:0;
+  width:100%;
+  pointer-events:none;
+  z-index:10;
+  padding:2rem 2.5rem;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  transition:opacity 0.5s;
+}
+.overlay.hidden{opacity:0}
+.brand{pointer-events:auto}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.85rem;
+  letter-spacing:0.05em;
+  display:inline-block;
+  margin-bottom:1rem;
+  transition:color 0.3s;
+}
+.back:hover{color:var(--amber)}
+.title{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  letter-spacing:0.03em;
+  margin-bottom:0.4rem;
+}
+.subtitle{
+  font-size:0.85rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:22rem;
+  line-height:1.6;
+}
+.panel{
+  pointer-events:auto;
+  background:rgba(18,14,26,0.88);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border);
+  border-radius:0.75rem;
+  padding:1.25rem 1.5rem;
+  width:280px;
+  font-size:0.85rem;
+}
+.panel h3{
+  font-size:0.7rem;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:var(--amber-dim);
+  margin-bottom:1rem;
+  font-weight:normal;
+}
+.control{margin-bottom:1rem}
+.control:last-child{margin-bottom:0}
+.control label{
+  display:flex;
+  justify-content:space-between;
+  color:var(--text);
+  margin-bottom:0.3rem;
+  font-size:0.8rem;
+}
+.control label .val{
+  color:var(--amber);
+  font-family:'Courier New',monospace;
+  font-size:0.75rem;
+}
+.control input[type=range]{
+  width:100%;
+  -webkit-appearance:none;appearance:none;
+  height:3px;background:var(--border);
+  border-radius:2px;outline:none;
+}
+.control input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--amber);cursor:pointer;
+  transition:transform 0.15s;
+}
+.control input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3)}
+.control input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--amber);cursor:pointer;border:none;
+}
+.btn-row{display:flex;gap:0.5rem;margin-top:0.8rem}
+.btn{
+  flex:1;background:transparent;
+  border:1px solid var(--border);color:var(--muted);
+  padding:0.5rem;border-radius:0.4rem;
+  font-family:inherit;font-size:0.75rem;cursor:pointer;
+  transition:all 0.2s;
+}
+.btn:hover{border-color:var(--amber-dim);color:var(--text)}
+.btn.active{background:var(--amber-glow);border-color:var(--amber-dim);color:var(--amber)}
+.species-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:0.4rem;
+  margin-top:0.6rem;
+}
+.species-btn{
+  aspect-ratio:1;
+  background:rgba(30,22,50,0.6);
+  border:1px solid var(--border);
+  border-radius:0.3rem;
+  cursor:pointer;
+  font-size:0.6rem;
+  color:var(--muted);
+  display:flex;align-items:center;justify-content:center;
+  transition:all 0.2s;
+  font-family:'Courier New',monospace;
+}
+.species-btn:hover{border-color:var(--amber-dim);color:var(--text)}
+.species-btn.active{background:var(--amber-glow);border-color:var(--amber);color:var(--amber)}
+.stat{
+  display:flex;justify-content:space-between;
+  margin-bottom:0.4rem;font-size:0.75rem;color:var(--muted);
+}
+.stat .num{color:var(--amber);font-family:'Courier New',monospace}
+.hint{
+  position:fixed;
+  bottom:1.5rem;left:50%;
+  transform:translateX(-50%);
+  color:var(--border);
+  font-size:0.75rem;
+  pointer-events:none;z-index:10;
+  transition:opacity 1s;
+}
+.hint.fade{opacity:0}
+</style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<div class="overlay" id="overlay">
+  <div class="brand">
+    <a class="back" href="../">← Go Nuts Hour</a>
+    <div class="title">Soft Life</div>
+    <div class="subtitle">Continuous cellular automata. Not alive, not dead — somewhere in between, and that's where the movement comes from.</div>
+  </div>
+  <div class="panel">
+    <h3>Parameters</h3>
+    <div class="control">
+      <label>Growth center <span class="val" id="v-mu">0.15</span></label>
+      <input type="range" id="mu" min="0.01" max="0.28" step="0.005" value="0.15">
+    </div>
+    <div class="control">
+      <label>Growth width <span class="val" id="v-sigma">0.015</span></label>
+      <input type="range" id="sigma" min="0.003" max="0.03" step="0.001" value="0.015">
+    </div>
+    <div class="control">
+      <label>Kernel radius <span class="val" id="v-r">13</span></label>
+      <input type="range" id="r" min="6" max="25" step="1" value="13">
+    </div>
+    <div class="control">
+      <label>Time step <span class="val" id="v-dt">0.10</span></label>
+      <input type="range" id="dt" min="0.02" max="0.20" step="0.01" value="0.10">
+    </div>
+    <div class="control">
+      <label>Colormap <span class="val" id="v-cm">amber</span></label>
+      <div class="btn-row" style="margin-top:0.3rem">
+        <button class="btn active" data-cm="amber" id="cm-amber">Amber</button>
+        <button class="btn" data-cm="life" id="cm-life">Life</button>
+        <button class="btn" data-cm="thermal" id="cm-thermal">Heat</button>
+      </div>
+    </div>
+    <div class="control">
+      <label>Species</label>
+      <div class="species-grid" id="species-grid"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-clear">Clear</button>
+      <button class="btn" id="btn-random">Scatter</button>
+      <button class="btn" id="btn-pause">Pause</button>
+    </div>
+    <div style="margin-top:1rem">
+      <div class="stat"><span>Alive cells</span><span class="num" id="s-alive">0</span></div>
+      <div class="stat"><span>Mass</span><span class="num" id="s-mass">0.0</span></div>
+      <div class="stat"><span>Generation</span><span class="num" id="s-gen">0</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="hint" id="hint">click to seed · drag to paint · space to pause · H to hide UI</div>
+
+<script>
+(function(){
+'use strict';
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+// --- Grid ---
+const GRID = 128;          // logical grid size
+const SCALE = 3;           // pixels per cell (rendered at 3x for smoothness)
+let PW, PH;                // pixel dimensions
+let field, nextField;      // Float32Array GRID*GRID
+let kernel;                // Float32Array (2R+1)^2
+let kernelR = 13;
+
+function alloc(){
+  field = new Float32Array(GRID*GRID);
+  nextField = new Float32Array(GRID*GRID);
+}
+alloc();
+
+// --- Kernel ---
+function buildKernel(R){
+  kernelR = R;
+  const size = 2*R+1;
+  kernel = new Float32Array(size*size);
+  let sum = 0;
+  for(let dy=-R; dy<=R; dy++){
+    for(let dx=-R; dx<=R; dx++){
+      const dist = Math.sqrt(dx*dx + dy*dy) / R;
+      // Concentric kernel: peak ring between 0.3 and 0.5, gaussian bump
+      let v = 0;
+      if(dist <= 1){
+        // Bell-shaped ring: gaussian centered at 0.4
+        const t = dist - 0.4;
+        v = Math.exp(-t*t * 12);
+      }
+      kernel[(dy+R)*size + (dx+R)] = v;
+      sum += v;
+    }
+  }
+  // Normalize so kernel sums to 1
+  for(let i=0; i<kernel.length; i++) kernel[i] /= sum;
+}
+
+buildKernel(kernelR);
+
+// --- Growth function ---
+// Gaussian centered at mu with width sigma
+// Growth(n) = 2 * exp(-((n-mu)^2) / (2*sigma^2)) - 1
+// Maps [0,1] neighborhood average to [-1,1] growth
+let mu = 0.15, sigma = 0.015, dt = 0.10;
+
+function growth(n){
+  const d = n - mu;
+  return 2 * Math.exp(-(d*d) / (2*sigma*sigma)) - 1;
+}
+
+// --- Simulation step ---
+function step(){
+  const R = kernelR;
+  const kSize = 2*R+1;
+  const g = GRID;
+
+  for(let y=0; y<g; y++){
+    for(let x=0; x<g; x++){
+      // Convolution with toroidal (wrap-around) boundaries
+      let acc = 0;
+      for(let dy=-R; dy<=R; dy++){
+        for(let dx=-R; dx<=R; dx++){
+          const sx = (x + dx + g) % g;
+          const sy = (y + dy + g) % g;
+          const k = kernel[(dy+R)*kSize + (dx+R)];
+          acc += field[sy*g + sx] * k;
+        }
+      }
+      // Growth function + integration
+      const cur = field[y*g + x];
+      const newVal = cur + dt * growth(acc);
+      // Clamp to [0,1]
+      nextField[y*g + x] = newVal < 0 ? 0 : (newVal > 1 ? 1 : newVal);
+    }
+  }
+  // Swap
+  const tmp = field; field = nextField; nextField = tmp;
+}
+
+// --- Rendering ---
+const colormaps = {
+  amber: [
+    [0, 0.05, 0.02],     // near-zero: deep dark purple-black
+    [0.15, 0.08, 0.03],  // low: dark warm
+    [0.5, 0.28, 0.08],   // mid: burnt orange
+    [0.92, 0.65, 0.28],  // high: amber
+    [1.0, 0.92, 0.72],   // peak: warm white-gold
+  ],
+  life: [
+    [0, 0.02, 0.04],
+    [0.02, 0.15, 0.08],
+    [0.1, 0.45, 0.15],
+    [0.3, 0.85, 0.35],
+    [0.7, 1.0, 0.5],
+  ],
+  thermal: [
+    [0.02, 0.0, 0.08],
+    [0.25, 0.05, 0.3],
+    [0.7, 0.15, 0.2],
+    [1.0, 0.5, 0.1],
+    [1.0, 0.95, 0.6],
+  ],
+};
+let currentCM = 'amber';
+
+function cmap(val, cm){
+  const stops = colormaps[cm];
+  val = val < 0 ? 0 : (val > 1 ? 1 : val);
+  const seg = val * (stops.length - 1);
+  const i = Math.floor(seg);
+  const f = seg - i;
+  const c0 = stops[i];
+  const c1 = stops[Math.min(i+1, stops.length-1)];
+  return [
+    c0[0] + (c1[0]-c0[0])*f,
+    c0[1] + (c1[1]-c0[1])*f,
+    c0[2] + (c1[2]-c0[2])*f,
+  ];
+}
+
+// ImageData for fast pixel writes
+let imgData, imgBuf;
+function setupImg(){
+  // Render at GRID*GRID then scale up via drawImage
+  imgData = ctx.createImageData(GRID, GRID);
+  imgBuf = new Uint8ClampedArray(GRID*GRID*4);
+}
+
+let renderCanvas = document.createElement('canvas');
+renderCanvas.width = GRID;
+renderCanvas.height = GRID;
+const renderCtx = renderCanvas.getContext('2d');
+let renderImg = renderCtx.createImageData(GRID, GRID);
+
+function render(){
+  const data = renderImg.data;
+  for(let i=0; i<GRID*GRID; i++){
+    const v = field[i];
+    const [r,g,b] = cmap(v, currentCM);
+    const idx = i*4;
+    data[idx] = r*255;
+    data[idx+1] = g*255;
+    data[idx+2] = b*255;
+    data[idx+3] = 255;
+  }
+  renderCtx.putImageData(renderImg, 0, 0);
+  // Scale up with smoothing
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(renderCanvas, 0, 0, PW, PH);
+}
+
+// --- Seeding ---
+function seedGaussian(cx, cy, spread, intensity){
+  const r = Math.ceil(spread * 2);
+  for(let dy=-r; dy<=r; dy++){
+    for(let dx=-r; dx<=r; dx++){
+      const x = (Math.floor(cx)+dx + GRID) % GRID;
+      const y = (Math.floor(cy)+dy + GRID) % GRID;
+      const d2 = dx*dx + dy*dy;
+      const v = intensity * Math.exp(-d2 / (2*spread*spread));
+      const idx = y*GRID + x;
+      field[idx] = Math.min(1, field[idx] + v);
+    }
+  }
+}
+
+function seedRandom(num, spread, intensity){
+  for(let i=0; i<num; i++){
+    const cx = Math.random() * GRID;
+    const cy = Math.random() * GRID;
+    seedGaussian(cx, cy, spread, intensity);
+  }
+}
+
+function seedSpecies(name){
+  // Clear first
+  field.fill(0);
+  const presets = {
+    orbium:   {mu:0.15, sigma:0.015, r:13, dt:0.10, seeds:[[64,64,5,1.0]]},
+    gliders:  {mu:0.16, sigma:0.014, r:13, dt:0.10, seeds:[[40,40,4,0.9],[80,80,4,0.9],[60,40,3,0.8],[40,80,3,0.8]]},
+    geminium: {mu:0.18, sigma:0.013, r:12, dt:0.12, seeds:[[50,64,4,1.0],[78,64,4,1.0]]},
+    scutium:  {mu:0.12, sigma:0.018, r:15, dt:0.08, seeds:[[64,64,6,0.9],[64,40,5,0.7]]},
+    pentakis: {mu:0.14, sigma:0.016, r:14, dt:0.09, seeds:[[64,64,4,1.0],[48,48,3,0.8],[80,80,3,0.8]]},
+    spiral:   {mu:0.17, sigma:0.012, r:11, dt:0.11, seeds:[[64,64,3,1.0]]},
+    chaos:    {mu:0.20, sigma:0.010, r:10, dt:0.13, seeds:[]},  // scatter many
+    dust:     {mu:0.13, sigma:0.020, r:16, dt:0.07, seeds:[]},
+  };
+  const p = presets[name] || presets.orbium;
+  mu = p.mu; sigma = p.sigma; dt = p.dt;
+  buildKernel(p.r);
+  syncSliders();
+  if(p.seeds.length === 0){
+    seedRandom(30, 3, 0.8);
+  } else {
+    for(const s of p.seeds) seedGaussian(s[0], s[1], s[2], s[3]);
+  }
+}
+
+// --- Interaction ---
+let painting = false;
+let lastPx = -1, lastPy = -1;
+
+function cellFromMouse(e){
+  const rect = cv.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * GRID;
+  const y = ((e.clientY - rect.top) / rect.height) * GRID;
+  return [x, y];
+}
+
+cv.addEventListener('mousedown', e => {
+  painting = true;
+  const [x,y] = cellFromMouse(e);
+  seedGaussian(x, y, 4, 0.9);
+  lastPx = x; lastPy = y;
+});
+cv.addEventListener('mousemove', e => {
+  if(!painting) return;
+  const [x,y] = cellFromMouse(e);
+  // Interpolate for smooth painting
+  const steps = Math.max(1, Math.ceil(Math.hypot(x-lastPx, y-lastPy)));
+  for(let i=1; i<=steps; i++){
+    const ix = lastPx + (x-lastPx)*i/steps;
+    const iy = lastPy + (y-lastPy)*i/steps;
+    seedGaussian(ix, iy, 3, 0.5);
+  }
+  lastPx = x; lastPy = y;
+});
+cv.addEventListener('mouseup', () => { painting = false; });
+cv.addEventListener('mouseleave', () => { painting = false; });
+
+// Touch
+cv.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const [x,y] = cellFromMouse(t);
+  seedGaussian(x, y, 4, 0.9);
+  lastPx = x; lastPy = y; painting = true;
+}, {passive:false});
+cv.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if(!painting) return;
+  const t = e.touches[0];
+  const [x,y] = cellFromMouse(t);
+  const steps = Math.max(1, Math.ceil(Math.hypot(x-lastPx, y-lastPy)));
+  for(let i=1; i<=steps; i++){
+    seedGaussian(lastPx+(x-lastPx)*i/steps, lastPy+(y-lastPy)*i/steps, 3, 0.5);
+  }
+  lastPx = x; lastPy = y;
+}, {passive:false});
+cv.addEventListener('touchend', () => { painting = false; });
+
+// --- UI ---
+function syncSliders(){
+  document.getElementById('mu').value = mu;
+  document.getElementById('v-mu').textContent = mu.toFixed(3);
+  document.getElementById('sigma').value = sigma;
+  document.getElementById('v-sigma').textContent = sigma.toFixed(3);
+  document.getElementById('r').value = kernelR;
+  document.getElementById('v-r').textContent = kernelR;
+  document.getElementById('dt').value = dt;
+  document.getElementById('v-dt').textContent = dt.toFixed(2);
+}
+
+document.getElementById('mu').addEventListener('input', e => {
+  mu = parseFloat(e.target.value);
+  document.getElementById('v-mu').textContent = mu.toFixed(3);
+});
+document.getElementById('sigma').addEventListener('input', e => {
+  sigma = parseFloat(e.target.value);
+  document.getElementById('v-sigma').textContent = sigma.toFixed(3);
+});
+document.getElementById('r').addEventListener('input', e => {
+  buildKernel(parseInt(e.target.value));
+  document.getElementById('v-r').textContent = kernelR;
+});
+document.getElementById('dt').addEventListener('input', e => {
+  dt = parseFloat(e.target.value);
+  document.getElementById('v-dt').textContent = dt.toFixed(2);
+});
+
+// Colormap buttons
+document.querySelectorAll('[data-cm]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-cm]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentCM = btn.dataset.cm;
+    document.getElementById('v-cm').textContent = btn.dataset.cm;
+  });
+});
+
+// Species grid
+const speciesList = ['orbium','gliders','geminium','scutium','pentakis','spiral','chaos','dust'];
+const grid = document.getElementById('species-grid');
+speciesList.forEach((sp, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'species-btn' + (i === 0 ? ' active' : '');
+  btn.textContent = sp.slice(0,4);
+  btn.title = sp;
+  btn.dataset.species = sp;
+  btn.addEventListener('click', () => {
+    grid.querySelectorAll('.species-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    seedSpecies(sp);
+  });
+  grid.appendChild(btn);
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => field.fill(0));
+document.getElementById('btn-random').addEventListener('click', () => seedRandom(15, 3, 0.8));
+
+let paused = false;
+document.getElementById('btn-pause').addEventListener('click', e => {
+  paused = !paused;
+  e.target.textContent = paused ? 'Play' : 'Pause';
+  e.target.classList.toggle('active', paused);
+});
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if(e.code === 'Space'){
+    e.preventDefault();
+    paused = !paused;
+    const btn = document.getElementById('btn-pause');
+    btn.textContent = paused ? 'Play' : 'Pause';
+    btn.classList.toggle('active', paused);
+  }
+  if(e.key === 'h' || e.key === 'H'){
+    document.getElementById('overlay').classList.toggle('hidden');
+  }
+  if(e.key === 'c' || e.key === 'C') field.fill(0);
+  if(e.key === 'r' || e.key === 'R') seedRandom(15, 3, 0.8);
+});
+
+// Fade hint
+setTimeout(() => document.getElementById('hint').classList.add('fade'), 5000);
+
+// --- Resize ---
+function resize(){
+  PW = window.innerWidth;
+  PH = window.innerHeight;
+  cv.width = PW;
+  cv.height = PH;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- Stats ---
+let genCount = 0;
+function updateStats(){
+  let alive = 0, mass = 0;
+  for(let i=0; i<GRID*GRID; i++){
+    if(field[i] > 0.01) alive++;
+    mass += field[i];
+  }
+  document.getElementById('s-alive').textContent = alive;
+  document.getElementById('s-mass').textContent = mass.toFixed(1);
+  document.getElementById('s-gen').textContent = genCount;
+}
+
+// --- Main loop ---
+let lastStats = 0;
+function loop(t){
+  if(!paused){
+    step();
+    genCount++;
+  }
+  render();
+  if(t - lastStats > 250){
+    updateStats();
+    lastStats = t;
+  }
+  requestAnimationFrame(loop);
+}
+
+// --- Init ---
+seedSpecies('orbium');
+setupImg();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

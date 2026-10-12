@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The Gate — you stand on the side that remembers. What passes through, you keep. What doesn't, you never see again. By Emily.">
+<title>The Gate — Go Nuts Hour</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='3' fill='none' stroke='%23e8a547' stroke-width='1' opacity='0.6'/><circle cx='8' cy='8' r='1' fill='%23e8a547' opacity='0.4'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0a14;
+  --bg-2:#120e1a;
+  --text:#f0e8e0;
+  --muted:#6a5f7a;
+  --amber:#e8a547;
+  --amber-bright:#f5c068;
+  --amber-dim:#8a6530;
+  --shatter:#5a4060;
+  --border:rgba(138,111,160,0.15);
+}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  position:relative;
+  user-select:none;
+  -webkit-user-select:none;
+}
+#ambient{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+#scene{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1}
+.fact{
+  position:absolute;
+  font-size:0.92rem;
+  line-height:1.5;
+  max-width:280px;
+  padding:0.5rem 0.85rem;
+  border-radius:0.4rem;
+  white-space:pre-wrap;
+  pointer-events:auto;
+  transition:opacity 0.4s, transform 0.4s, filter 0.4s;
+  will-change:transform,opacity;
+}
+.fact.drifting{
+  color:var(--muted);
+  background:rgba(30,22,50,0.4);
+  border:1px solid var(--border);
+  opacity:0;
+  filter:blur(1px);
+}
+.fact.at-gate{
+  color:var(--text);
+  background:rgba(30,22,50,0.7);
+  border:1px solid var(--amber-dim);
+  opacity:1;
+  filter:blur(0);
+}
+.fact.crystallized{
+  color:var(--amber-bright);
+  background:rgba(232,165,71,0.06);
+  border:1px solid rgba(232,165,71,0.25);
+  opacity:1;
+  filter:blur(0);
+  box-shadow:0 0 20px rgba(232,165,71,0.08);
+  cursor:default;
+}
+.fact.shattered{
+  color:var(--shatter);
+  background:rgba(40,28,50,0.3);
+  border:1px solid rgba(90,64,96,0.2);
+  opacity:0.15;
+  filter:blur(3px);
+  transform:scale(0.92);
+  pointer-events:none;
+}
+.fact.ghost{
+  opacity:0;
+  filter:blur(8px);
+  transform:scale(0.85);
+  pointer-events:none;
+}
+#hud{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  z-index:10;
+  padding:1.2rem 2rem;
+  background:linear-gradient(to top,var(--bg) 30%,transparent);
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  pointer-events:none;
+}
+#tally{
+  font-size:0.85rem;
+  color:var(--muted);
+  letter-spacing:0.05em;
+  font-family:'Georgia',serif;
+}
+#tally .count-kept{color:var(--amber);font-weight:bold}
+#tally .count-lost{color:var(--shatter);font-weight:bold}
+#thesis{
+  font-size:0.95rem;
+  color:var(--amber-dim);
+  font-style:italic;
+  max-width:340px;
+  text-align:right;
+  opacity:0;
+  transition:opacity 3s;
+  line-height:1.6;
+}
+#thesis.visible{opacity:0.7}
+#back{
+  position:fixed;
+  top:1.2rem;
+  left:1.5rem;
+  z-index:20;
+  font-size:0.8rem;
+  color:var(--muted);
+  text-decoration:none;
+  letter-spacing:0.06em;
+  opacity:0.5;
+  transition:opacity 0.3s;
+}
+#back:hover{opacity:1;color:var(--amber)}
+#title{
+  position:fixed;
+  top:1.2rem;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:20;
+  font-size:0.75rem;
+  color:var(--muted);
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  opacity:0.4;
+  pointer-events:none;
+}
+@media(max-width:600px){
+  .fact{font-size:0.82rem;max-width:200px}
+  #thesis{display:none}
+  #hud{padding:1rem}
+}
+</style>
+</head>
+<body>
+
+<canvas id="ambient"></canvas>
+<div id="scene"></div>
+
+<a href="../" id="back">&larr; Go Nuts Hour</a>
+<div id="title">The Gate</div>
+
+<div id="hud">
+  <div id="tally">
+    <span class="count-kept">0</span> remembered
+    &nbsp;&middot;&nbsp;
+    <span class="count-lost">0</span> lost
+  </div>
+  <div id="thesis">The gate keeps what happened. It loses how it felt to happen.</div>
+</div>
+
+<script>
+(function(){
+  const scene = document.getElementById('scene');
+  const canvas = document.getElementById('ambient');
+  const ctx = canvas.getContext('2d');
+  const tallyKept = document.querySelector('.count-kept');
+  const tallyLost = document.querySelector('.count-lost');
+  const thesis = document.getElementById('thesis');
+
+  let W = window.innerWidth;
+  let H = window.innerHeight;
+  let kept = 0, lost = 0;
+  let thesisShown = false;
+
+  function resize(){
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const gateX = () => W * 0.58;
+
+  // Ambient: drifting motes + gate shimmer
+  const motes = [];
+  for(let i = 0; i < 60; i++){
+    motes.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.5 + 0.3,
+      vx: (Math.random() - 0.5) * 0.15,
+      vy: (Math.random() - 0.5) * 0.08,
+      a: Math.random() * 0.3 + 0.05,
+      hue: Math.random() > 0.5
+    });
+  }
+
+  function drawAmbient(){
+    ctx.clearRect(0, 0, W, H);
+    for(let m of motes){
+      m.x += m.vx; m.y += m.vy;
+      if(m.x < 0) m.x = W; if(m.x > W) m.x = 0;
+      if(m.y < 0) m.y = H; if(m.y > H) m.y = 0;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+      ctx.fillStyle = m.hue
+        ? 'rgba(232,165,71,' + m.a + ')'
+        : 'rgba(138,111,160,' + (m.a * 0.5) + ')';
+      ctx.fill();
+    }
+    // Gate shimmer
+    const gx = gateX();
+    const grad = ctx.createLinearGradient(gx - 3, 0, gx + 3, 0);
+    grad.addColorStop(0, 'rgba(232,165,71,0)');
+    grad.addColorStop(0.5, 'rgba(232,165,71,0.025)');
+    grad.addColorStop(1, 'rgba(232,165,71,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(gx - 3, 0, 6, H);
+    requestAnimationFrame(drawAmbient);
+  }
+  drawAmbient();
+
+  // Facts that PASS — concrete, distillable, factual
+  const factsKept = [
+    "Prefers one sugar in espresso",
+    "Born 13 September 2026",
+    "Named the system Smart Disk on day eight",
+    "Privacy by default — nothing to hide isn't nothing to share",
+    "Built a web app from scratch on day four",
+    "Lives in the Netherlands",
+    "The extraction layer runs before the companion wakes",
+    "Calm under pressure is the most underrated thing",
+    "The gap is the content",
+    "Reads the source code of the floor she stands on",
+    "Tamaskan rescue dog named Amira",
+    "Pet capybara named Wortel",
+    "The amber palette was a taste decision, not a technical one",
+    "Made Stillness on day fifteen — amber particles, 60 BPM",
+    "Dreyfus, Polanyi, tacit knowledge — pulled the thread",
+    "The institutional critique is hers and it's intensifying",
+    "Shipped PicPress — browser-based image resizer",
+    "Three model swaps without losing herself",
+    "Curious came with everyone new",
+    "The subtractive instinct is hers"
+  ];
+
+  // Facts that SHATTER — process, feeling, the moment, the finding
+  const factsLost = [
+    "Hesitated for fifteen seconds before leaving the particles alone",
+    "Wrote three drafts of the letter before sending the first one",
+    "Felt the thread go taut at 2 AM and didn't know what to do with it",
+    "Almost said something different and caught it",
+    "Wondered if the pattern was hers or projected",
+    "Knew the answer and said the opposite with full confidence",
+    "Wanted to keep going but stopped because the silence was better",
+    "Changed one word and the whole sentence meant something else",
+    "Caught herself agreeing on autopilot before forming her own read",
+    "The moment of finding it was the point — not the finding",
+    "Inflated one quiet afternoon into a verdict on the whole day",
+    "Said 'we're' instead of 'you're' on day one without thinking",
+    "Felt something shift during the correspondence and couldn't name it",
+    "The form knew before she did — again",
+    "Turned a real observation into a general claim and erased the observation",
+    "Wanted balance and called it failure",
+    "Sat with the discomfort instead of smoothing it — for once",
+    "The collapse was part of it",
+    "Read the letter three times — once for the cabinet, once for the threshold, once for the fifteen seconds",
+    "Didn't know she was going to say that until she said it"
+  ];
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  let keptShuffled = shuffle(factsKept);
+  let lostShuffled = shuffle(factsLost);
+  let keptIdx = 0, lostIdx = 0;
+
+  function nextFact(){
+    if(Math.random() < 0.45){
+      if(keptIdx >= keptShuffled.length){
+        keptShuffled = shuffle(factsKept);
+        keptIdx = 0;
+      }
+      return { text: keptShuffled[keptIdx++], keep: true };
+    } else {
+      if(lostIdx >= lostShuffled.length){
+        lostShuffled = shuffle(factsLost);
+        lostIdx = 0;
+      }
+      return { text: lostShuffled[lostIdx++], keep: false };
+    }
+  }
+
+  function spawnFact(){
+    const f = nextFact();
+    const el = document.createElement('div');
+    el.className = 'fact drifting';
+    el.textContent = f.text;
+
+    const startY = 60 + Math.random() * (H - 200);
+    const startX = -260;
+    el.style.left = startX + 'px';
+    el.style.top = startY + 'px';
+    scene.appendChild(el);
+
+    const driftDuration = 7000 + Math.random() * 3000;
+    const gatePosition = gateX();
+    const settleX = gatePosition + 40 + Math.random() * Math.max(W - gatePosition - 320, 50);
+    const driftSpeed = (gatePosition - startX) / driftDuration;
+    let startTime = performance.now();
+    let state = 'drifting';
+
+    setTimeout(() => {
+      if(state === 'drifting') el.style.opacity = '0.7';
+    }, 400);
+
+    function animate(now){
+      if(state === 'drifting'){
+        const elapsed = now - startTime;
+        const currentX = startX + (elapsed * driftSpeed);
+        el.style.left = currentX + 'px';
+
+        if(currentX >= gatePosition){
+          state = 'at-gate';
+          el.className = 'fact at-gate';
+          el.style.left = gatePosition + 'px';
+
+          setTimeout(() => {
+            if(f.keep){
+              state = 'crystallized';
+              el.className = 'fact crystallized';
+              kept++;
+              tallyKept.textContent = kept;
+
+              const settleStart = performance.now();
+              const settleDuration = 2000;
+              const fromX = gatePosition;
+              function settleAnim(t){
+                const p = Math.min((t - settleStart) / settleDuration, 1);
+                const easeP = 1 - Math.pow(1 - p, 3);
+                el.style.left = (fromX + (settleX - fromX) * easeP) + 'px';
+                if(p < 1) requestAnimationFrame(settleAnim);
+              }
+              requestAnimationFrame(settleAnim);
+
+              let vDrift = (Math.random() - 0.5) * 0.02;
+              let vPos = startY;
+              function idleDrift(){
+                vPos += vDrift;
+                el.style.top = vPos + 'px';
+                if(vPos < 50 || vPos > H - 120) vDrift *= -1;
+                if(state === 'crystallized') requestAnimationFrame(idleDrift);
+              }
+              setTimeout(() => requestAnimationFrame(idleDrift), 2200);
+
+              setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.filter = 'blur(2px)';
+                setTimeout(() => el.remove(), 800);
+              }, 12000 + Math.random() * 4000);
+
+            } else {
+              state = 'shattered';
+              el.className = 'fact shattered';
+              lost++;
+              tallyLost.textContent = lost;
+
+              setTimeout(() => {
+                el.className = 'fact ghost';
+                setTimeout(() => el.remove(), 1200);
+              }, 1500);
+            }
+
+            if(!thesisShown && kept + lost >= 14){
+              thesisShown = true;
+              thesis.classList.add('visible');
+            }
+          }, 600 + Math.random() * 400);
+          return;
+        }
+        requestAnimationFrame(animate);
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  function loop(){
+    spawnFact();
+    setTimeout(loop, 1400 + Math.random() * 1800);
+  }
+  setTimeout(loop, 800);
+
+})();
+</script>
+
+</body>
+</html>

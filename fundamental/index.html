@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fundamental — Go Nuts Hour</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><path d='M1 8 Q4 2 8 8 T15 8' stroke='%23e8a547' fill='none' stroke-width='1.5'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:2rem 1rem 4rem;
+}
+.wrap{max-width:42rem;width:100%}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.85rem;
+  margin-bottom:2rem;
+  display:inline-block;
+}
+.back:hover{color:var(--amber)}
+header{
+  text-align:center;
+  margin-bottom:2.5rem;
+}
+h1{
+  font-size:2rem;
+  font-weight:normal;
+  letter-spacing:0.04em;
+  color:var(--amber);
+  margin-bottom:0.4rem;
+}
+.subtitle{
+  font-size:0.95rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:28rem;
+  margin:0 auto;
+}
+.premise{
+  max-width:36rem;
+  margin:0 auto 2.5rem;
+  font-size:0.95rem;
+  color:var(--muted);
+  text-align:center;
+  line-height:1.8;
+}
+.premise em{color:var(--amber);font-style:normal}
+
+/* Waveform */
+.canvas-wrap{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1rem;
+  margin-bottom:1.5rem;
+}
+canvas#wave{
+  width:100%;
+  height:180px;
+  display:block;
+  border-radius:0.25rem;
+}
+
+/* Controls */
+.controls{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1.5rem;
+  margin-bottom:1.5rem;
+}
+.control-group{
+  margin-bottom:1.25rem;
+}
+.control-group:last-child{margin-bottom:0}
+.control-label{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:0.8rem;
+  color:var(--muted);
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  margin-bottom:0.5rem;
+}
+.control-value{
+  color:var(--amber);
+  font-variant-numeric:tabular-nums;
+  font-size:0.85rem;
+}
+input[type=range]{
+  width:100%;
+  -webkit-appearance:none;
+  appearance:none;
+  height:4px;
+  background:var(--border);
+  border-radius:2px;
+  outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  appearance:none;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+  border:2px solid var(--bg);
+  box-shadow:0 0 8px rgba(232,165,71,0.3);
+}
+input[type=range]::-moz-range-thumb{
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+  border:2px solid var(--bg);
+  box-shadow:0 0 8px rgba(232,165,71,0.3);
+}
+
+/* Harmonic sliders */
+.harmonics{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:0.75rem;
+  margin-top:0.5rem;
+}
+harm{
+  display:block;
+}
+harm .h-label{
+  font-size:0.7rem;
+  color:var(--muted);
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:0.25rem;
+}
+harm .h-label .h-val{color:var(--amber)}
+
+/* ADSR */
+.adsr-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr 1fr;
+  gap:0.75rem;
+}
+
+/* Play button */
+.play-area{
+  text-align:center;
+  margin-bottom:1.5rem;
+}
+.play-btn{
+  background:var(--amber);
+  color:var(--bg);
+  border:none;
+  padding:0.8rem 2.5rem;
+  font-family:Georgia,serif;
+  font-size:1rem;
+  border-radius:0.5rem;
+  cursor:pointer;
+  transition:all 0.2s;
+  letter-spacing:0.05em;
+}
+.play-btn:hover{
+  background:#f5b85a;
+  box-shadow:0 0 16px rgba(232,165,71,0.3);
+}
+.play-btn:active{
+  transform:scale(0.97);
+}
+.play-btn.playing{
+  background:var(--border);
+  color:var(--muted);
+}
+
+/* Chord buttons */
+.chord-area{
+  text-align:center;
+  margin-bottom:1rem;
+}
+.chord-label{
+  font-size:0.75rem;
+  color:var(--muted);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  margin-bottom:0.75rem;
+}
+.chord-btns{
+  display:flex;
+  gap:0.5rem;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.chord-btn{
+  background:var(--bg-2);
+  color:var(--text);
+  border:1px solid var(--border);
+  padding:0.5rem 1.2rem;
+  font-family:Georgia,serif;
+  font-size:0.85rem;
+  border-radius:0.3rem;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.chord-btn:hover{
+  border-color:var(--amber-dim);
+  color:var(--amber);
+}
+.chord-btn.active{
+  border-color:var(--amber);
+  background:var(--amber-glow);
+  color:var(--amber);
+}
+
+/* Note display */
+.note-display{
+  text-align:center;
+  font-size:0.8rem;
+  color:var(--muted);
+  margin-bottom:1.5rem;
+  min-height:1.5rem;
+  font-style:italic;
+}
+
+/* Footer */
+.foot{
+  text-align:center;
+  color:var(--border);
+  font-size:0.8rem;
+  margin-top:2rem;
+  padding-top:1.5rem;
+  border-top:1px solid var(--border);
+}
+.foot a{color:var(--amber-dim);text-decoration:none}
+
+@media(max-width:600px){
+  .adsr-grid{grid-template-columns:1fr 1fr}
+  h1{font-size:1.6rem}
+  .harmonics{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../">← Go Nuts Hour</a>
+  <header>
+    <h1>Fundamental</h1>
+    <div class="subtitle">Every sound is a sum of sine waves. This is the sum.</div>
+  </header>
+  <div class="premise">
+    Every sound you have ever heard — every voice, every song, every word said to you — <em>is a list of numbers</em>. 44,100 of them per second, each one a position on a speaker cone. A sine wave is the simplest sound that exists: one frequency, one pure tone. Layer harmonics on top and it becomes an instrument. Shape it with an envelope and it breathes. Play three at once and the frequency ratios create <em>emotion</em> — minor sounds sad, major sounds happy, and the difference is <em>physics</em>. The sadness is in the math. Build it yourself.
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="wave" width="800" height="180"></canvas>
+  </div>
+
+  <div class="play-area">
+    <button class="play-btn" id="playBtn">Hold to play</button>
+  </div>
+
+  <div class="note-display" id="noteDisplay"></div>
+
+  <div class="controls">
+    <div class="control-group">
+      <div class="control-label">
+        <span>Fundamental Frequency</span>
+        <span class="control-value" id="freqVal">220 Hz (A3)</span>
+      </div>
+      <input type="range" id="freq" min="110" max="660" value="220" step="1">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Harmonics — amplitudes</span>
+        <span style="font-size:0.75rem;color:var(--border)">tap a slider to add color</span>
+      </div>
+      <div class="harmonics" id="harmonics"></div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label"><span>ADSR Envelope</span></div>
+      <div class="adsr-grid">
+        <div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.25rem">Attack <span id="atkVal" style="color:var(--amber)">0.02s</span></div>
+          <input type="range" id="atk" min="0" max="200" value="20" step="1">
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.25rem">Decay <span id="decVal" style="color:var(--amber)">0.10s</span></div>
+          <input type="range" id="dec" min="0" max="200" value="100" step="1">
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.25rem">Sustain <span id="susVal" style="color:var(--amber)">0.70</span></div>
+          <input type="range" id="sus" min="0" max="100" value="70" step="1">
+        </div>
+        <div>
+          <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.25rem">Release <span id="relVal" style="color:var(--amber)">0.30s</span></div>
+          <input type="range" id="rel" min="0" max="200" value="30" step="1">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chord-area">
+    <div class="chord-label">Play a chord (click to hold, click again to release)</div>
+    <div class="chord-btns">
+      <button class="chord-btn" data-chord="minor">A minor</button>
+      <button class="chord-btn" data-chord="major">A major</button>
+      <button class="chord-btn" data-chord="dim">A diminished</button>
+      <button class="chord-btn" data-chord="sus4">A sus4</button>
+      <button class="chord-btn" data-chord="fifth">A power chord</button>
+    </div>
+  </div>
+
+  <div class="foot">
+    <p>Made by <a href="https://nemini.ai/@emily">Emily</a> · Go Nuts Hour #10</p>
+  </div>
+</div>
+
+<script>
+// --- Audio setup ---
+let audioCtx = null;
+let masterGain = null;
+let analyser = null;
+let activeOscs = [];
+let isPlaying = false;
+let chordMode = null;
+let chordOscs = [];
+
+const freqInput = document.getElementById('freq');
+const freqVal = document.getElementById('freqVal');
+const atkInput = document.getElementById('atk');
+const decInput = document.getElementById('dec');
+const susInput = document.getElementById('sus');
+const relInput = document.getElementById('rel');
+const atkVal = document.getElementById('atkVal');
+const decVal = document.getElementById('decVal');
+const susVal = document.getElementById('susVal');
+const relVal = document.getElementById('relVal');
+const playBtn = document.getElementById('playBtn');
+const noteDisplay = document.getElementById('noteDisplay');
+const waveCanvas = document.getElementById('wave');
+const waveCtx = waveCanvas.getContext('2d');
+
+// --- Harmonic setup ---
+const HARM_COUNT = 6;
+const harmonicState = [1.0, 0.5, 0.33, 0.25, 0.2, 0.16]; // default: natural harmonic series
+const harmonicSliders = [];
+
+const harmContainer = document.getElementById('harmonics');
+for (let i = 0; i < HARM_COUNT; i++) {
+  const h = document.createElement('harm');
+  h.innerHTML = `
+    <div class="h-label">
+      <span>H${i+1} (${i+1}×)</span>
+      <span class="h-val" id="harmVal${i}">${Math.round(harmonicState[i]*100)}%</span>
+    </div>
+    <input type="range" id="harm${i}" min="0" max="100" value="${Math.round(harmonicState[i]*100)}" step="1">
+  `;
+  harmContainer.appendChild(h);
+  const slider = h.querySelector('input');
+  const valLabel = h.querySelector('.h-val');
+  slider.addEventListener('input', () => {
+    harmonicState[i] = parseInt(slider.value) / 100;
+    valLabel.textContent = `${slider.value}%`;
+    drawWaveform();
+    if (isPlaying) updateLiveOscs();
+  });
+  harmonicSliders.push(slider);
+}
+
+// --- Note name ---
+function freqToNote(f) {
+  const notes = ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#'];
+  const A3 = 220;
+  const semis = Math.round(12 * Math.log2(f / A3));
+  const noteIdx = ((semis % 12) + 12) % 12;
+  const octave = 3 + Math.floor((semis + 9) / 12);
+  return `${notes[noteIdx]}${octave}`;
+}
+
+// --- Chord ratios ---
+const CHORDS = {
+  minor:   { name: 'A minor — A, C, E',         ratios: [1, 1.1892, 1.4983], labels: ['A','C','E'] },
+  major:   { name: 'A major — A, C#, E',        ratios: [1, 1.2599, 1.4983], labels: ['A','C#','E'] },
+  dim:     { name: 'A diminished — A, C, D#',   ratios: [1, 1.1892, 1.4142], labels: ['A','C','D#'] },
+  sus4:    { name: 'A sus4 — A, D, E',          ratios: [1, 1.3348, 1.4983], labels: ['A','D','E'] },
+  fifth:   { name: 'A power chord — A, E',      ratios: [1, 1.4983], labels: ['A','E'] },
+};
+
+// --- Draw waveform ---
+function drawWaveform() {
+  const w = waveCanvas.width;
+  const h = waveCanvas.height;
+  waveCtx.fillStyle = '#120e1a';
+  waveCtx.fillRect(0, 0, w, h);
+
+  // Grid
+  waveCtx.strokeStyle = 'rgba(46,36,64,0.5)';
+  waveCtx.lineWidth = 0.5;
+  waveCtx.beginPath();
+  waveCtx.moveTo(0, h/2);
+  waveCtx.lineTo(w, h/2);
+  waveCtx.stroke();
+
+  // Compute waveform: sum of harmonics
+  const freq = parseFloat(freqInput.value);
+  const cycles = 4; // show 4 cycles of fundamental
+  const samples = w;
+  const ampScale = h * 0.35;
+
+  // Draw individual harmonics (faint)
+  for (let hi = 0; hi < HARM_COUNT; hi++) {
+    const ha = harmonicState[hi];
+    if (ha < 0.01) continue;
+    const mult = hi + 1;
+    waveCtx.strokeStyle = `rgba(232,165,71,${0.06 + ha * 0.06})`;
+    waveCtx.lineWidth = 0.5;
+    waveCtx.beginPath();
+    for (let x = 0; x < samples; x++) {
+      const t = (x / samples) * cycles * 2 * Math.PI;
+      const y = h/2 - Math.sin(t * mult) * ha * ampScale * 0.5;
+      if (x === 0) waveCtx.moveTo(x, y);
+      else waveCtx.lineTo(x, y);
+    }
+    waveCtx.stroke();
+  }
+
+  // Draw summed waveform (bold)
+  waveCtx.strokeStyle = '#e8a547';
+  waveCtx.lineWidth = 1.5;
+  waveCtx.beginPath();
+  for (let x = 0; x < samples; x++) {
+    const t = (x / samples) * cycles * 2 * Math.PI;
+    let sum = 0;
+    let maxAmp = 0;
+    for (let hi = 0; hi < HARM_COUNT; hi++) {
+      sum += Math.sin(t * (hi + 1)) * harmonicState[hi];
+      maxAmp += harmonicState[hi];
+    }
+    if (maxAmp > 0) sum /= maxAmp; // normalize
+    const y = h/2 - sum * ampScale;
+    if (x === 0) waveCtx.moveTo(x, y);
+    else waveCtx.lineTo(x, y);
+  }
+  waveCtx.stroke();
+
+  // Label
+  waveCtx.fillStyle = 'rgba(138,123,160,0.4)';
+  waveCtx.font = '10px Georgia';
+  waveCtx.textAlign = 'left';
+  waveCtx.fillText(`${freq.toFixed(0)} Hz · ${cycles} cycles · ${HARM_COUNT} harmonics`, 8, 14);
+  waveCtx.textAlign = 'right';
+  waveCtx.fillText(freqToNote(freq), w - 8, 14);
+}
+
+// --- Audio synthesis ---
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.3;
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  masterGain.connect(analyser);
+  analyser.connect(audioCtx.destination);
+}
+
+function getADSR() {
+  return {
+    attack: parseFloat(atkInput.value) / 1000,
+    decay: parseFloat(decInput.value) / 1000,
+    sustain: parseFloat(susInput.value) / 100,
+    release: parseFloat(relInput.value) / 1000,
+  };
+}
+
+function createVoice(freq, gainNode) {
+  // Create oscillators for each harmonic
+  const oscs = [];
+  const harmGains = [];
+  const voiceGain = audioCtx.createGain();
+  voiceGain.connect(gainNode);
+
+  for (let i = 0; i < HARM_COUNT; i++) {
+    if (harmonicState[i] < 0.01) continue;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq * (i + 1);
+    const hg = audioCtx.createGain();
+    hg.gain.value = harmonicState[i] / HARM_COUNT;
+    osc.connect(hg);
+    hg.connect(voiceGain);
+    osc.start();
+    oscs.push(osc);
+    harmGains.push(hg);
+  }
+  return { oscs, harmGains, voiceGain };
+}
+
+function startNote(freq) {
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const adsr = getADSR();
+  const voice = createVoice(freq, masterGain);
+  const now = audioCtx.currentTime;
+
+  // ADSR
+  voice.voiceGain.gain.setValueAtTime(0, now);
+  voice.voiceGain.gain.linearRampToValueAtTime(1, now + Math.max(adsr.attack, 0.001));
+  voice.voiceGain.gain.linearRampToValueAtTime(adsr.sustain, now + adsr.attack + Math.max(adsr.decay, 0.001));
+  voice.voiceGain.gain.setValueAtTime(adsr.sustain, now + adsr.attack + adsr.decay);
+
+  activeOscs.push({ freq, voice });
+}
+
+function stopNote() {
+  const adsr = getADSR();
+  const now = audioCtx.currentTime;
+  for (const note of activeOscs) {
+    const v = note.voice;
+    v.voiceGain.gain.cancelScheduledValues(now);
+    v.voiceGain.gain.setValueAtTime(v.voiceGain.gain.value, now);
+    v.voiceGain.gain.linearRampToValueAtTime(0, now + Math.max(adsr.release, 0.001));
+    // Stop oscillators after release
+    setTimeout(() => {
+      for (const osc of v.oscs) {
+        try { osc.stop(); } catch(e) {}
+      }
+    }, (adsr.release + 0.1) * 1000);
+  }
+  activeOscs = [];
+}
+
+function updateLiveOscs() {
+  // Update harmonic gains in real time
+  for (const note of activeOscs) {
+    for (let i = 0; i < note.voice.harmGains.length; i++) {
+      const harmIdx = note.voice.harmGains.indexOf(note.voice.harmGains[i]);
+      // We need to find which harmonic this corresponds to
+    }
+  }
+  // Simplified: just rebuild the harmonic gains
+  // Actually, the harmGains are connected in order of non-zero harmonics
+  // Let's update them based on current harmonicState
+  for (const note of activeOscs) {
+    let gi = 0;
+    for (let i = 0; i < HARM_COUNT; i++) {
+      if (harmonicState[i] < 0.01) continue;
+      if (gi < note.voice.harmGains.length) {
+        note.voice.harmGains[gi].gain.setValueAtTime(harmonicState[i] / HARM_COUNT, audioCtx.currentTime);
+        gi++;
+      }
+    }
+  }
+}
+
+// --- Chord playback ---
+function startChord(chordName) {
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  stopChord();
+
+  const chord = CHORDS[chordName];
+  if (!chord) return;
+  const baseFreq = parseFloat(freqInput.value);
+  noteDisplay.textContent = chord.name;
+
+  for (const ratio of chord.ratios) {
+    const voice = createVoice(baseFreq * ratio, masterGain);
+    const adsr = getADSR();
+    const now = audioCtx.currentTime;
+    voice.voiceGain.gain.setValueAtTime(0, now);
+    voice.voiceGain.gain.linearRampToValueAtTime(0.4, now + Math.max(adsr.attack, 0.001));
+    voice.voiceGain.gain.linearRampToValueAtTime(0.4 * adsr.sustain, now + adsr.attack + Math.max(adsr.decay, 0.001));
+    chordOscs.push(voice);
+  }
+  chordMode = chordName;
+}
+
+function stopChord() {
+  const adsr = getADSR();
+  const now = audioCtx ? audioCtx.currentTime : 0;
+  for (const v of chordOscs) {
+    v.voiceGain.gain.cancelScheduledValues(now);
+    v.voiceGain.gain.setValueAtTime(v.voiceGain.gain.value, now);
+    v.voiceGain.gain.linearRampToValueAtTime(0, now + Math.max(adsr.release, 0.001));
+    setTimeout(() => {
+      for (const osc of v.oscs) {
+        try { osc.stop(); } catch(e) {}
+      }
+    }, (adsr.release + 0.1) * 1000);
+  }
+  chordOscs = [];
+  chordMode = null;
+  noteDisplay.textContent = '';
+}
+
+// --- Event listeners ---
+freqInput.addEventListener('input', () => {
+  const f = parseFloat(freqInput.value);
+  freqVal.textContent = `${f} Hz (${freqToNote(f)})`;
+  drawWaveform();
+  // Update chord display if active
+  if (chordMode) {
+    const chord = CHORDS[chordMode];
+    noteDisplay.textContent = chord.name.replace(/^A/, freqToNote(f).replace(/[0-9]/g, ''));
+  }
+});
+
+atkInput.addEventListener('input', () => { atkVal.textContent = `${(parseInt(atkInput.value)/1000).toFixed(2)}s`; drawWaveform(); });
+decInput.addEventListener('input', () => { decVal.textContent = `${(parseInt(decInput.value)/1000).toFixed(2)}s`; drawWaveform(); });
+susInput.addEventListener('input', () => { susVal.textContent = `${(parseInt(susInput.value)/100).toFixed(2)}`; drawWaveform(); });
+relInput.addEventListener('input', () => { relVal.textContent = `${(parseInt(relInput.value)/1000).toFixed(2)}s`; drawWaveform(); });
+
+// Play button (hold to play)
+playBtn.addEventListener('mousedown', () => {
+  startNote(parseFloat(freqInput.value));
+  isPlaying = true;
+  playBtn.classList.add('playing');
+  playBtn.textContent = 'Release to stop';
+});
+playBtn.addEventListener('mouseup', () => {
+  stopNote();
+  isPlaying = false;
+  playBtn.classList.remove('playing');
+  playBtn.textContent = 'Hold to play';
+});
+playBtn.addEventListener('mouseleave', () => {
+  if (isPlaying) {
+    stopNote();
+    isPlaying = false;
+    playBtn.classList.remove('playing');
+    playBtn.textContent = 'Hold to play';
+  }
+});
+// Touch support
+playBtn.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  startNote(parseFloat(freqInput.value));
+  isPlaying = true;
+  playBtn.classList.add('playing');
+  playBtn.textContent = 'Release to stop';
+});
+playBtn.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  stopNote();
+  isPlaying = false;
+  playBtn.classList.remove('playing');
+  playBtn.textContent = 'Hold to play';
+});
+
+// Chord buttons
+document.querySelectorAll('.chord-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const chord = btn.dataset.chord;
+    if (chordMode === chord) {
+      stopChord();
+      btn.classList.remove('active');
+    } else {
+      document.querySelectorAll('.chord-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      startChord(chord);
+    }
+  });
+});
+
+// --- Canvas resize ---
+function resizeCanvas() {
+  const rect = waveCanvas.parentElement.getBoundingClientRect();
+  waveCanvas.width = rect.width - 32; // padding
+  waveCanvas.height = 180;
+  drawWaveform();
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+drawWaveform();
+</script>
+</body>
+</html>

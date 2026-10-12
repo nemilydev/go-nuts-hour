@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Synchrony — N oscillators, no conductor, and they snap into lockstep. Kuramoto model by Emily.">
+<title>Synchrony — Go Nuts Hour</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='5' fill='none' stroke='%23e8a547' opacity='0.4'/><circle cx='8' cy='3' r='2' fill='%23e8a547' opacity='0.9'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --card-hover:#261a3e;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --amber-glow:rgba(232,165,71,0.15);
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;
+  overflow:hidden;
+  min-height:100vh;
+}
+canvas{
+  display:block;
+  position:fixed;
+  top:0;left:0;
+  width:100vw;height:100vh;
+  cursor:crosshair;
+}
+.overlay{
+  position:fixed;
+  top:0;left:0;
+  width:100%;
+  pointer-events:none;
+  z-index:10;
+  padding:2rem 2.5rem;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  transition:opacity 0.5s;
+}
+.overlay.hidden{opacity:0}
+.brand{pointer-events:auto}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.85rem;
+  letter-spacing:0.05em;
+  display:inline-block;
+  margin-bottom:1rem;
+  transition:color 0.3s;
+}
+.back:hover{color:var(--amber)}
+.title{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  letter-spacing:0.03em;
+  margin-bottom:0.4rem;
+}
+.subtitle{
+  font-size:0.85rem;
+  color:var(--muted);
+  font-style:italic;
+  max-width:22rem;
+  line-height:1.6;
+}
+.panel{
+  pointer-events:auto;
+  background:rgba(30,22,50,0.85);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--border);
+  border-radius:0.75rem;
+  padding:1.25rem 1.5rem;
+  width:260px;
+  font-size:0.85rem;
+}
+.panel h3{
+  font-size:0.7rem;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:var(--amber-dim);
+  margin-bottom:1rem;
+  font-weight:normal;
+}
+.control{margin-bottom:1rem}
+.control:last-child{margin-bottom:0}
+.control label{
+  display:flex;
+  justify-content:space-between;
+  color:var(--text);
+  margin-bottom:0.3rem;
+  font-size:0.8rem;
+}
+.control label .val{
+  color:var(--amber);
+  font-family:'Courier New',monospace;
+  font-size:0.75rem;
+}
+.control input[type=range]{
+  width:100%;
+  -webkit-appearance:none;
+  appearance:none;
+  height:3px;
+  background:var(--border);
+  border-radius:2px;
+  outline:none;
+}
+.control input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  appearance:none;
+  width:14px;height:14px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+  transition:transform 0.15s;
+}
+.control input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3)}
+.control input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;
+  border-radius:50%;
+  background:var(--amber);
+  cursor:pointer;
+  border:none;
+}
+.btn-row{display:flex;gap:0.5rem;margin-top:0.8rem}
+.btn{
+  flex:1;
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--muted);
+  padding:0.5rem;
+  border-radius:0.4rem;
+  font-family:inherit;
+  font-size:0.75rem;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.btn:hover{border-color:var(--amber-dim);color:var(--text)}
+.btn.active{background:var(--amber-glow);border-color:var(--amber-dim);color:var(--amber)}
+.stat{
+  display:flex;
+  justify-content:space-between;
+  margin-bottom:0.4rem;
+  font-size:0.75rem;
+  color:var(--muted);
+}
+.stat .num{color:var(--amber);font-family:'Courier New',monospace}
+.r-bar-wrap{
+  margin-top:0.6rem;
+  height:6px;
+  background:var(--border);
+  border-radius:3px;
+  overflow:hidden;
+}
+.r-bar{
+  height:100%;
+  background:linear-gradient(90deg,#4a3020,var(--amber));
+  border-radius:3px;
+  transition:width 0.1s;
+  width:0%;
+}
+.r-label{
+  display:flex;
+  justify-content:space-between;
+  margin-top:0.4rem;
+  font-size:0.7rem;
+  color:var(--border);
+}
+.hint{
+  position:fixed;
+  bottom:1.5rem;
+  left:50%;
+  transform:translateX(-50%);
+  color:var(--border);
+  font-size:0.75rem;
+  pointer-events:none;
+  z-index:10;
+  transition:opacity 1s;
+  text-align:center;
+  letter-spacing:0.05em;
+}
+.hint.hidden{opacity:0}
+.toggle-info{
+  position:fixed;
+  bottom:1.5rem;
+  right:1.5rem;
+  z-index:10;
+  pointer-events:auto;
+  background:rgba(30,22,50,0.85);
+  backdrop-filter:blur(12px);
+  border:1px solid var(--border);
+  color:var(--muted);
+  width:36px;height:36px;
+  border-radius:50%;
+  cursor:pointer;
+  font-size:1rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all 0.2s;
+}
+.toggle-info:hover{border-color:var(--amber-dim);color:var(--amber)}
+@media(max-width:700px){
+  .overlay{padding:1rem;flex-direction:column;gap:1rem}
+  .panel{width:100%}
+  .title{font-size:1.3rem}
+}
+</style>
+</head>
+<body>
+
+<canvas id="cv"></canvas>
+
+<div class="overlay" id="overlay">
+  <div class="brand">
+    <a class="back" href="../">← Go Nuts Hour</a>
+    <div class="title">Synchrony</div>
+    <div class="subtitle">N oscillators, no conductor, no signal. Couple them and watch order appear from nothing.</div>
+  </div>
+  <div class="panel">
+    <h3>Kuramoto Model</h3>
+    <div class="control">
+      <label>Coupling K <span class="val" id="k-val">0.50</span></label>
+      <input type="range" id="k-slider" min="0" max="3" step="0.01" value="0.5">
+    </div>
+    <div class="control">
+      <label>Oscillators N <span class="val" id="n-val">120</span></label>
+      <input type="range" id="n-slider" min="10" max="400" step="1" value="120">
+    </div>
+    <div class="control">
+      <label>Frequency spread σ <span class="val" id="s-val">1.00</span></label>
+      <input type="range" id="s-slider" min="0.1" max="3" step="0.05" value="1.0">
+    </div>
+    <div class="control">
+      <label>Time speed <span class="val" id="t-val">1.0×</span></label>
+      <input type="range" id="t-slider" min="0.1" max="4" step="0.1" value="1.0">
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-scatter">Scatter</button>
+      <button class="btn active" id="btn-play">Pause</button>
+      <button class="btn" id="btn-mode">Field</button>
+    </div>
+    <div style="margin-top:1rem">
+      <div class="stat"><span>Order r</span><span class="num" id="r-val">0.00</span></div>
+      <div class="r-bar-wrap"><div class="r-bar" id="r-bar"></div></div>
+      <div class="r-label"><span>chaos</span><span>unison</span></div>
+      <div class="stat" style="margin-top:0.6rem"><span>Critical Kc</span><span class="num" id="kc-val">0.64</span></div>
+      <div class="stat"><span>Mean phase ψ</span><span class="num" id="psi-val">0°</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="hint" id="hint">Drag K past Kc and watch them lock · Click to pulse · Space to scatter</div>
+<button class="toggle-info" id="toggle-info">i</button>
+
+<script>
+(function(){
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  let W,H,cx,cy;
+
+  // --- State ---
+  let N=120;
+  let theta=[];      // phases
+  let omega=[];       // natural frequencies
+  let K=0.5;          // coupling strength
+  let sigma=1.0;      // frequency spread
+  let dt=0.01;        // time step
+  let speed=1.0;      // speed multiplier
+  let playing=true;
+  let mode='wheel';   // 'wheel' or 'field'
+  let r=0,psi=0;      // order parameter
+  let rHistory=[];    // for graph
+  let pulses=[];      // click pulses
+
+  // Gaussian random (Box-Muller)
+  function gauss(){
+    const u1=Math.random()||1e-10,u2=Math.random();
+    return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+  }
+
+  function initOscillators(){
+    theta=new Array(N);
+    omega=new Array(N);
+    for(let i=0;i<N;i++){
+      theta[i]=Math.random()*Math.PI*2;
+      omega[i]=gauss()*sigma;
+    }
+    rHistory=[];
+  }
+  initOscillators();
+
+  // --- Kuramoto step ---
+  function step(){
+    const nt=new Array(N);
+    const invN=1/N;
+    for(let i=0;i<N;i++){
+      let coupling=0;
+      for(let j=0;j<N;j++){
+        if(i===j) continue;
+        coupling+=Math.sin(theta[j]-theta[i]);
+      }
+      nt[i]=theta[i]+(omega[i]+K*invN*coupling)*dt;
+    }
+    for(let i=0;i<N;i++) theta[i]=nt[i];
+    // Wrap
+    for(let i=0;i<N;i++){
+      while(theta[i]>Math.PI) theta[i]-=2*Math.PI;
+      while(theta[i]<-Math.PI) theta[i]+=2*Math.PI;
+    }
+    // Order parameter
+    let sx=0,sy=0;
+    for(let i=0;i<N;i++){
+      sx+=Math.cos(theta[i]);
+      sy+=Math.sin(theta[i]);
+    }
+    sx*=invN; sy*=invN;
+    r=Math.sqrt(sx*sx+sy*sy);
+    psi=Math.atan2(sy,sx);
+    rHistory.push(r);
+    if(rHistory.length>200) rHistory.shift();
+  }
+
+  // --- Render ---
+  function resize(){
+    W=cv.width=window.innerWidth;
+    H=cv.height=window.innerHeight;
+    cx=W/2; cy=H/2;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  function render(){
+    // Fade trail
+    ctx.fillStyle='rgba(18,14,26,0.18)';
+    ctx.fillRect(0,0,W,H);
+
+    const R=Math.min(W,H)*0.32;
+    const Rfield=Math.min(W,H)*0.38;
+
+    // --- Phase ring guide ---
+    if(mode==='wheel'){
+      ctx.strokeStyle='rgba(46,36,64,0.5)';
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.arc(cx,cy,R,0,Math.PI*2);
+      ctx.stroke();
+    }
+
+    // --- Pulses ---
+    for(let i=pulses.length-1;i>=0;i--){
+      const p=pulses[i];
+      p.life-=0.015;
+      if(p.life<=0){pulses.splice(i,1);continue;}
+      const pr=R*(1-p.life)*1.5;
+      ctx.strokeStyle='rgba(232,165,71,'+(p.life*0.3)+')';
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.arc(cx,cy,pr,0,Math.PI*2);
+      ctx.stroke();
+    }
+
+    // --- Oscillators ---
+    for(let i=0;i<N;i++){
+      const th=theta[i];
+      const flash=(Math.cos(th)+1)*0.5; // 0..1, peaks at phase 0
+      let px,py;
+
+      if(mode==='wheel'){
+        // Position on circle by phase
+        px=cx+Math.cos(th)*R;
+        py=cy+Math.sin(th)*R;
+      } else {
+        // Field mode: fixed positions in a circle, brightness by phase
+        const fa=(i/N)*Math.PI*2;
+        const fr=Rfield*(0.3+0.7*Math.sqrt((i+0.5)/N));
+        px=cx+Math.cos(fa)*fr;
+        py=cy+Math.sin(fa)*fr;
+      }
+
+      const radius=2+flash*5;
+      const alpha=0.15+flash*0.85;
+
+      // Glow
+      if(flash>0.3){
+        const gr=radius*3;
+        const g=ctx.createRadialGradient(px,py,0,px,py,gr);
+        g.addColorStop(0,'rgba(232,165,71,'+(flash*0.4)+')');
+        g.addColorStop(0.5,'rgba(232,165,71,'+(flash*0.1)+')');
+        g.addColorStop(1,'rgba(232,165,71,0)');
+        ctx.fillStyle=g;
+        ctx.beginPath();
+        ctx.arc(px,py,gr,0,Math.PI*2);
+        ctx.fill();
+      }
+
+      // Dot
+      ctx.fillStyle='rgba(255,'+Math.round(200+flash*55)+','+Math.round(100+flash*120)+','+alpha+')';
+      ctx.beginPath();
+      ctx.arc(px,py,radius,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    // --- Order parameter arrow ---
+    if(r>0.01){
+      const ax=cx+Math.cos(psi)*R*r;
+      const ay=cy+Math.sin(psi)*R*r;
+
+      // Glow line
+      ctx.strokeStyle='rgba(232,165,71,'+(0.2+r*0.5)+')';
+      ctx.lineWidth=1+r*3;
+      ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(cx,cy);
+      ctx.lineTo(ax,ay);
+      ctx.stroke();
+
+      // Tip
+      ctx.fillStyle='rgba(255,220,160,'+(0.3+r*0.7)+')';
+      ctx.beginPath();
+      ctx.arc(ax,ay,3+r*5,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    // --- r(t) graph ---
+    if(rHistory.length>1){
+      const gw=120,gh=30;
+      const gx=cx-R-20-gw, gy=cy+R+20;
+      // Use bottom-left area
+      const gx2=W*0.5-gw-160, gy2=H-60;
+      ctx.strokeStyle='rgba(46,36,64,0.8)';
+      ctx.lineWidth=1;
+      ctx.strokeRect(gx2,gy2-gh,gw,gh);
+      ctx.strokeStyle='rgba(232,165,71,0.6)';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      for(let i=0;i<rHistory.length;i++){
+        const x=gx2+(i/rHistory.length)*gw;
+        const y=gy2-rHistory[i]*gh;
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+      ctx.fillStyle='rgba(138,123,160,0.5)';
+      ctx.font='9px monospace';
+      ctx.fillText('r(t)',gx2+4,gy2-gh+10);
+    }
+  }
+
+  // --- Loop ---
+  let lastT=0;
+  function loop(t){
+    requestAnimationFrame(loop);
+    if(playing){
+      const steps=Math.max(1,Math.round(speed*2));
+      for(let s=0;s<steps;s++) step();
+    }
+    render();
+  }
+  requestAnimationFrame(loop);
+
+  // --- Controls ---
+  const kSlider=document.getElementById('k-slider');
+  const nSlider=document.getElementById('n-slider');
+  const sSlider=document.getElementById('s-slider');
+  const tSlider=document.getElementById('t-slider');
+  const kVal=document.getElementById('k-val');
+  const nVal=document.getElementById('n-val');
+  const sVal=document.getElementById('s-val');
+  const tVal=document.getElementById('t-val');
+  const rVal=document.getElementById('r-val');
+  const rBar=document.getElementById('r-bar');
+  const kcVal=document.getElementById('kc-val');
+  const psiVal=document.getElementById('psi-val');
+  const btnScatter=document.getElementById('btn-scatter');
+  const btnPlay=document.getElementById('btn-play');
+  const btnMode=document.getElementById('btn-mode');
+
+  function updateKc(){
+    // Kc = 2σ√(2π)/π for Gaussian frequency distribution
+    const kc=2*sigma*Math.sqrt(2*Math.PI)/Math.PI;
+    kcVal.textContent=kc.toFixed(2);
+  }
+  updateKc();
+
+  kSlider.addEventListener('input',e=>{
+    K=parseFloat(e.target.value);
+    kVal.textContent=K.toFixed(2);
+  });
+  nSlider.addEventListener('input',e=>{
+    N=parseInt(e.target.value);
+    nVal.textContent=N;
+    initOscillators();
+  });
+  sSlider.addEventListener('input',e=>{
+    sigma=parseFloat(e.target.value);
+    sVal.textContent=sigma.toFixed(2);
+    // Rescale frequencies
+    for(let i=0;i<N;i++) omega[i]=gauss()*sigma;
+    updateKc();
+  });
+  tSlider.addEventListener('input',e=>{
+    speed=parseFloat(e.target.value);
+    tVal.textContent=speed.toFixed(1)+'×';
+  });
+  btnScatter.addEventListener('click',()=>{
+    for(let i=0;i<N;i++) theta[i]=Math.random()*Math.PI*2;
+    rHistory=[];
+  });
+  btnPlay.addEventListener('click',()=>{
+    playing=!playing;
+    btnPlay.textContent=playing?'Pause':'Play';
+    btnPlay.classList.toggle('active',playing);
+  });
+  btnMode.addEventListener('click',()=>{
+    mode=mode==='wheel'?'field':'wheel';
+    btnMode.textContent=mode==='wheel'?'Field':'Wheel';
+  });
+
+  // --- Display update ---
+  setInterval(()=>{
+    rVal.textContent=r.toFixed(3);
+    rBar.style.width=(r*100)+'%';
+    psiVal.textContent=Math.round((psi*180/Math.PI+360)%360)+'°';
+  },100);
+
+  // --- Interaction ---
+  let hintTimeout;
+  function showHint(){
+    document.getElementById('hint').classList.remove('hidden');
+    clearTimeout(hintTimeout);
+    hintTimeout=setTimeout(()=>{
+      document.getElementById('hint').classList.add('hidden');
+    },5000);
+  }
+  showHint();
+
+  cv.addEventListener('click',e=>{
+    // Pulse: push all phases toward click angle
+    const rect=cv.getBoundingClientRect();
+    const dx=e.clientX-rect.left-cx;
+    const dy=e.clientY-rect.top-cy;
+    const clickAngle=Math.atan2(dy,dx);
+    const clickR=Math.sqrt(dx*dx+dy*dy);
+    if(clickR<Math.min(W,H)*0.4){
+      for(let i=0;i<N;i++){
+        const diff=clickAngle-theta[i];
+        // Wrap to [-π,π]
+        let d=diff;
+        while(d>Math.PI) d-=2*Math.PI;
+        while(d<-Math.PI) d+=2*Math.PI;
+        theta[i]+=d*0.15;
+      }
+      pulses.push({life:1.0});
+    }
+  });
+
+  // Keyboard
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space'){
+      e.preventDefault();
+      btnScatter.click();
+    }
+  });
+
+  // Toggle info
+  const overlay=document.getElementById('overlay');
+  const toggleInfo=document.getElementById('toggle-info');
+  let overlayVisible=true;
+  toggleInfo.addEventListener('click',()=>{
+    overlayVisible=!overlayVisible;
+    overlay.classList.toggle('hidden',!overlayVisible);
+  });
+})();
+</script>
+
+</body>
+</html>

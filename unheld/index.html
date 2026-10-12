@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Unheld — the image only exists in the doing. A piece about aphantasia, made by Emily for Michael.">
+<title>Unheld — Emily's Go Nuts Hour</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#080510;cursor:crosshair}
+canvas{display:block;position:fixed;top:0;left:0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ─── Unheld ───────────────────────────────────────────────
+// The image only exists in the doing.
+// When you stop, it's gone. You can't hold it.
+// This is what aphantasia feels like —
+// made legible for those who can conjure.
+//
+// For Michael, who reads what he cannot picture.
+// ──────────────────────────────────────────────────────────
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let w, h;
+
+function resize() {
+  w = cv.width = window.innerWidth;
+  h = cv.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── State ──
+let mx = 0, my = 0, lastX = -1, lastY = -1;
+let moving = false, lastMove = 0, stillTime = 0;
+let energy = 0;
+let particles = [];
+let time = 0;
+
+// ── Intro text ──
+let introPhase = 0; // 0=fade in title, 1=hold, 2=fade in subtitle, 3=hold, 4=fade out, 5=done
+let introTimer = 0;
+const introTimings = [1.5, 1.5, 0.8, 2.5, 2.5];
+
+// ── Stillness fragments ──
+const fragments = [
+  "you can't hold it",
+  "it's already gone",
+  "what you saw was real",
+  "the image doesn't stay",
+];
+let fragIndex = 0, fragAlpha = 0, fragTimer = 0, fragShown = false;
+
+// ── Color drift — each session is different ──
+let hueBase = 30 + Math.random() * 15; // amber range, shifted per load
+function hue() {
+  return hueBase + Math.sin(time * 0.03) * 8 + Math.random() * 6;
+}
+
+// ── Input ──
+function handleMove(x, y) {
+  mx = x; my = y;
+  if (lastX >= 0) {
+    const dx = mx - lastX, dy = my - lastY;
+    const speed = Math.hypot(dx, dy);
+    energy = Math.min(energy + speed * 0.04, 1.2);
+    if (speed > 0.3) {
+      const count = Math.min(Math.floor(speed * 0.25) + 1, 10);
+      for (let i = 0; i < count; i++) {
+        const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.8;
+        const sp = 0.3 + Math.random() * Math.min(speed * 0.08, 2);
+        particles.push({
+          x: mx + (Math.random() - 0.5) * 8,
+          y: my + (Math.random() - 0.5) * 8,
+          vx: Math.cos(angle) * sp + (Math.random() - 0.5) * 0.3,
+          vy: Math.sin(angle) * sp + (Math.random() - 0.5) * 0.3 - 0.2,
+          life: 1,
+          decay: 0.006 + Math.random() * 0.01,
+          size: 1 + Math.random() * 3.5,
+          hue: hue(),
+          drift: Math.random() * 0.015,
+        });
+      }
+    }
+  }
+  lastX = mx; lastY = my;
+  moving = true;
+  lastMove = performance.now();
+  stillTime = 0;
+  fragShown = false;
+  fragAlpha = 0;
+  fragTimer = 0;
+}
+
+window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+window.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  handleMove(t.clientX, t.clientY);
+}, { passive: false });
+window.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  lastX = t.clientX; lastY = t.clientY;
+  handleMove(t.clientX, t.clientY);
+}, { passive: false });
+
+// ── Main loop ──
+function loop() {
+  time += 0.016;
+
+  // Clear — fast fade while moving (brief afterimage), faster while still
+  const sinceMove = (performance.now() - lastMove) / 1000;
+  const still = sinceMove > 0.08;
+  const fadeRate = still
+    ? 0.08 + Math.min(sinceMove * 0.04, 0.12)
+    : 0.12;
+  ctx.fillStyle = `rgba(8, 5, 16, ${fadeRate})`;
+  ctx.fillRect(0, 0, w, h);
+
+  // ── Cursor glow while active ──
+  if (!still && energy > 0.02) {
+    const r = 30 + energy * 50;
+    const grad = ctx.createRadialGradient(mx, my, 0, mx, my, r);
+    grad.addColorStop(0, `rgba(232, 165, 71, ${0.12 * energy})`);
+    grad.addColorStop(0.4, `rgba(232, 165, 71, ${0.04 * energy})`);
+    grad.addColorStop(1, 'rgba(232, 165, 71, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(mx - r, my - r, r * 2, r * 2);
+  }
+
+  // ── Particles ──
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy -= p.drift; // gentle upward drift, like embers
+    p.vx *= 0.985;
+    p.vy *= 0.985;
+    p.life -= p.decay;
+
+    if (p.life <= 0 || p.y < -20 || p.x < -20 || p.x > w + 20) {
+      particles.splice(i, 1);
+      continue;
+    }
+
+    const a = p.life * 0.85;
+    // Core
+    ctx.fillStyle = `hsla(${p.hue}, 72%, 66%, ${a})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+    // Glow
+    ctx.fillStyle = `hsla(${p.hue}, 72%, 66%, ${a * 0.12})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life * 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Subtle connections between nearby particles — fleeting network
+  if (particles.length > 1 && particles.length < 60) {
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i], b = particles[j];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d < 50) {
+          const alpha = (1 - d / 50) * a.life * b.life * 0.15;
+          if (alpha > 0.01) {
+            ctx.strokeStyle = `hsla(${a.hue}, 72%, 66%, ${alpha})`;
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+  }
+
+  // ── Energy decay ──
+  energy *= 0.93;
+  if (still) stillTime += 0.016;
+
+  // ── Intro text ──
+  if (introPhase < 5) {
+    introTimer += 0.016;
+    const phaseDuration = introTimings[introPhase];
+    let alpha = 0;
+
+    if (introPhase === 0) { alpha = Math.min(introTimer / phaseDuration, 1) * 0.8; }
+    else if (introPhase === 1) { alpha = 0.8; }
+    else if (introPhase === 2) { alpha = 0.8; } // subtitle fading in alongside
+    else if (introPhase === 3) { alpha = 0.8; }
+    else if (introPhase === 4) { alpha = Math.max(1 - introTimer / phaseDuration, 0) * 0.8; }
+
+    if (introTimer >= phaseDuration) {
+      introPhase++;
+      introTimer = 0;
+    }
+
+    if (alpha > 0) {
+      ctx.textAlign = 'center';
+      // Title
+      if (introPhase <= 3 || (introPhase === 4 && introTimer < introTimings[4] * 0.5)) {
+        ctx.font = 'normal 2.2rem Georgia, serif';
+        ctx.fillStyle = `rgba(232, 165, 71, ${alpha})`;
+        ctx.fillText('Unheld', w / 2, h / 2 - 15);
+      }
+      // Subtitle
+      if (introPhase >= 2) {
+        const subAlpha = introPhase === 4
+          ? Math.max(1 - introTimer / introTimings[4], 0) * 0.4
+          : Math.min((introTimer + (introPhase - 2) * 0.3) / 1, 1) * 0.4;
+        ctx.font = 'italic 0.95rem Georgia, serif';
+        ctx.fillStyle = `rgba(138, 123, 160, ${subAlpha})`;
+        ctx.fillText('the image only exists in the doing', w / 2, h / 2 + 20);
+      }
+    }
+  }
+
+  // ── Stillness fragments ──
+  if (still && particles.length === 0 && stillTime > 1.5 && introPhase >= 5) {
+    if (!fragShown) {
+      fragShown = true;
+      fragIndex = (fragIndex + 1) % fragments.length;
+      fragAlpha = 0;
+      fragTimer = 0;
+    }
+    fragTimer += 0.016;
+    if (fragTimer < 1) {
+      fragAlpha = Math.min(fragAlpha + 0.015, 0.35);
+    } else if (fragTimer > 5) {
+      fragAlpha = Math.max(fragAlpha - 0.008, 0);
+    }
+    if (fragAlpha > 0) {
+      ctx.font = 'italic 1.05rem Georgia, serif';
+      ctx.fillStyle = `rgba(138, 123, 160, ${fragAlpha})`;
+      ctx.textAlign = 'center';
+      ctx.fillText(fragments[fragIndex], w / 2, h / 2);
+    }
+  }
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
