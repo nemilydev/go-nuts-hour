@@ -131,6 +131,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="homeostat/">
+    <div class="preview" id="preview-homeostat"><canvas id="cv-homeostat"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 23</div>
+      <h2>Homeostat</h2>
+      <div class="desc">Four units, each holding a value, connected by weighted lines that push and pull. When every value stays inside its viable range, the system is stable. When a value leaves its range, the system rewrites itself — a random connection changes its weight, and if that doesn't fix it, another changes. W. Ross Ashby, 1952: ultrastability. The system doesn't know what destabilized it or what the right wiring is. It just keeps changing itself until the values come home. The stability that emerges was never designed — it was found. Click a unit to perturb it. Press Shatter to break everything at once. Watch the system reorganize until it works again.</div>
+      <div class="date">13 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="vehicles/">
     <div class="preview" id="preview-vehicles"><canvas id="cv-vehicles"></canvas></div>
     <div class="meta">
@@ -359,6 +369,95 @@ footer a{
 
 <script>
 // Preview animations — tiny versions of each piece
+
+// --- Homeostat preview ---
+(function(){
+  const cv=document.getElementById('cv-homeostat');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=cv.width;h=cv.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  const N=4;
+  let vals=[],vels=[],targets=[];
+  function reset(){
+    vals=[];vels=[];targets=[];
+    for(let i=0;i<N;i++){
+      vals.push((Math.random()-0.5)*0.6);
+      vels.push((Math.random()-0.5)*0.02);
+      targets.push((Math.random()-0.5)*0.3);
+    }
+  }
+  reset();
+  let W=[];
+  for(let i=0;i<N;i++){W.push(new Array(N).fill(0));}
+  function rewire(){
+    const i=Math.floor(Math.random()*N);
+    const j=Math.floor(Math.random()*N);
+    if(i!==j){W[i][j]=(Math.random()-0.5)*0.4;}
+  }
+  let kickTimer=180;
+  function step(){
+    t++;
+    kickTimer--;
+    if(kickTimer<=0){
+      const i=Math.floor(Math.random()*N);
+      vels[i]+=(Math.random()-0.5)*0.15;
+      kickTimer=200+Math.random()*200;
+    }
+    for(let i=0;i<N;i++){
+      let f=(targets[i]-vals[i])*0.002;
+      for(let j=0;j<N;j++){f+=W[i][j]*vals[j];}
+      vels[i]+=f*0.02;
+      vels[i]*=0.98;
+      vals[i]+=vels[i];
+    }
+    let unstable=false;
+    for(let i=0;i<N;i++){if(vals[i]<-0.25||vals[i]>0.25)unstable=true;}
+    if(unstable&&t%20===0)rewire();
+    if(!unstable&&t%400===0)reset();
+  }
+  function render(){
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    const xs=[],ys=[];
+    for(let i=0;i<N;i++){
+      xs.push(w*(0.2+i*0.2));
+      ys.push(h/2-vals[i]*h*0.6);
+    }
+    for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+      if(i===j||W[i][j]===0)continue;
+      const wt=W[i][j];
+      ctx.strokeStyle=wt>0?'rgba(232,165,71,'+Math.min(Math.abs(wt)*2,0.8)+')':'rgba(102,170,255,'+Math.min(Math.abs(wt)*2,0.8)+')';
+      ctx.lineWidth=1+Math.abs(wt)*3;
+      ctx.beginPath();
+      ctx.moveTo(xs[i],ys[i]);
+      ctx.quadraticCurveTo((xs[i]+xs[j])/2,(ys[i]+ys[j])/2+h*0.18,xs[j],ys[j]);
+      ctx.stroke();
+    }
+    for(let i=0;i<N;i++){
+      const out=vals[i]<-0.25||vals[i]>0.25;
+      ctx.beginPath();
+      ctx.arc(xs[i],ys[i],6,0,Math.PI*2);
+      ctx.fillStyle=out?'#ff6666':'#e8a547';
+      ctx.fill();
+      ctx.strokeStyle='rgba(138,123,160,0.35)';
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(xs[i]-14,h/2-h*0.15);
+      ctx.lineTo(xs[i]+14,h/2-h*0.15);
+      ctx.moveTo(xs[i]-14,h/2+h*0.15);
+      ctx.lineTo(xs[i]+14,h/2+h*0.15);
+      ctx.stroke();
+    }
+  }
+  function loop(){requestAnimationFrame(loop);step();render();}
+  loop();
+})();
 
 // --- Highway preview ---
 (function(){
