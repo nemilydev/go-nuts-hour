@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Turing — a tape, a head, a handful of states. The simplest machine that can compute anything computable. Piece 24 of the Forge.">
+<title>Turing — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><rect x='2' y='6' width='12' height='4' fill='none' stroke='%23e8a547' stroke-width='1'/><rect x='6' y='5' width='4' height='6' fill='%23e8a547' opacity='0.6'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;--bg-2:#1a1428;--card:#1e1632;--card-h:#261a3e;
+  --text:#f0e8e0;--muted:#8a7ba0;--amber:#e8a547;--amber-d:#a87530;
+  --border:#2e2440;--accent:#66ddff;--accent-d:#4499bb;
+  --read:#ff66cc;--write:#66dd99;--move:#e8a547;
+  --head:#e8a547;
+}
+body{background:var(--bg);color:var(--text);font-family:'Georgia','Times New Roman',serif;line-height:1.75;overflow-x:hidden}
+#cv{display:block;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;opacity:0.3;pointer-events:none}
+.panel{
+  position:fixed;top:1rem;right:1rem;width:340px;max-width:calc(100vw - 2rem);
+  background:rgba(18,14,26,0.93);border:1px solid var(--border);border-radius:0.75rem;
+  padding:1rem 1.2rem;backdrop-filter:blur(8px);z-index:10;max-height:calc(100vh - 2rem);overflow-y:auto;
+}
+.panel h1{font-size:1.15rem;font-weight:normal;color:var(--amber);letter-spacing:.03em;margin-bottom:.2rem}
+.panel .sub{font-size:.75rem;color:var(--muted);font-style:italic;margin-bottom:.8rem}
+.panel .label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:.7rem 0 .3rem}
+.panel .label .val{color:var(--amber);float:right;text-transform:none;letter-spacing:0;font-size:.78rem}
+
+.prog-select{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);
+  border-radius:.4rem;padding:.5rem;font-family:inherit;font-size:.85rem;margin-bottom:.6rem}
+.prog-desc{font-size:.8rem;color:var(--muted);margin-bottom:.8rem;line-height:1.5}
+
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.4rem}
+.btn{
+  background:var(--card);border:1px solid var(--border);border-radius:.4rem;
+  padding:.4rem .7rem;color:var(--text);font-family:inherit;font-size:.78rem;cursor:pointer;
+  transition:border-color .2s,background .2s;
+}
+.btn:hover{border-color:var(--amber-d);background:var(--card-h)}
+.btn.primary{border-color:var(--amber-d);background:rgba(232,165,71,0.1)}
+.btn.primary:hover{background:rgba(232,165,71,0.2)}
+.btn.danger:hover{border-color:#ff6666}
+
+.speed-row{display:flex;align-items:center;gap:.5rem;margin:.5rem 0}
+.speed-row input{flex:1;accent-color:var(--amber)}
+.speed-row span{font-size:.75rem;color:var(--muted);min-width:2.5rem;text-align:right}
+
+/* Tape display */
+.tape-wrap{
+  position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:5;
+  overflow:visible;
+}
+.tape-inner{display:flex;align-items:center;position:relative}
+.cell{
+  width:44px;height:44px;flex-shrink:0;
+  border:1px solid var(--border);background:rgba(18,14,26,0.85);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Courier New',monospace;font-size:1.1rem;color:var(--text);
+  transition:background .15s,border-color .15s,transform .15s;
+  position:relative;
+}
+.cell .sym{font-size:1.1rem;font-weight:bold}
+.cell.head{
+  border-color:var(--head);border-width:2px;
+  background:rgba(232,165,71,0.12);
+  box-shadow:0 0 12px rgba(232,165,71,0.3);
+}
+.cell.head::after{
+  content:'▼';position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+  color:var(--head);font-size:.8rem;
+}
+.cell.read{background:rgba(255,102,204,0.15);border-color:var(--read)}
+.cell.written{background:rgba(102,221,153,0.15);border-color:var(--write)}
+.cell.empty .sym{color:var(--border)}
+.cell.blanks{color:var(--border);font-size:.7rem;letter-spacing:.1em}
+
+/* State display */
+.state-display{
+  position:fixed;left:50%;top:42%;transform:translate(-50%,calc(-50% + 60px));
+  z-index:5;text-align:center;pointer-events:none;
+}
+.state-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.2rem}
+.state-val{font-family:'Courier New',monospace;font-size:1.2rem;color:var(--amber)}
+.state-val .arrow{color:var(--muted);margin:0 .3rem;font-size:.8rem}
+
+/* Stats bar */
+.stats{
+  position:fixed;left:1rem;bottom:1rem;z-index:10;
+  display:flex;gap:1.2rem;
+  background:rgba(18,14,26,0.92);border:1px solid var(--border);border-radius:.5rem;
+  padding:.5rem .8rem;backdrop-filter:blur(8px);
+}
+.stat{font-size:.75rem;color:var(--muted)}
+.stat .v{color:var(--amber);font-family:'Courier New',monospace;font-weight:bold;margin-left:.3rem}
+
+/* Transition table */
+.table-wrap{margin-top:.4rem;max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:.4rem}
+.trans-table{width:100%;border-collapse:collapse;font-size:.72rem;font-family:'Courier New',monospace}
+.trans-table th{
+  background:var(--card);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
+  font-size:.65rem;padding:.3rem .4rem;text-align:left;position:sticky;top:0;
+}
+.trans-table td{padding:.3rem .4rem;border-top:1px solid var(--border);color:var(--text)}
+.trans-table tr.active td{background:rgba(232,165,71,0.1);color:var(--amber)}
+.trans-table .from{color:var(--read)}
+.trans-table .to{color:var(--write)}
+.trans-table .mv{color:var(--move)}
+
+/* Activity log */
+.log-wrap{
+  margin-top:.4rem;max-height:100px;overflow-y:auto;
+  border:1px solid var(--border);border-radius:.4rem;padding:.3rem .5rem;
+  font-family:'Courier New',monospace;font-size:.7rem;line-height:1.5;
+}
+.log-wrap .entry{color:var(--muted)}
+.log-wrap .entry .step{color:var(--amber-d)}
+.log-wrap .entry.halt{color:var(--read)}
+.log-wrap .entry.accept{color:var(--write)}
+
+/* History sparkline */
+.spark-wrap{
+  position:fixed;left:1rem;top:1rem;z-index:10;
+  background:rgba(18,14,26,0.92);border:1px solid var(--border);border-radius:.5rem;
+  padding:.5rem .8rem;backdrop-filter:blur(8px);width:200px;
+}
+.spark-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem}
+.spark-canvas{width:100%;height:40px;display:block}
+
+/* Activity histogram */
+.hist-wrap{
+  position:fixed;right:1rem;bottom:1rem;z-index:10;
+  background:rgba(18,14,26,0.92);border:1px solid var(--border);border-radius:.5rem;
+  padding:.5rem .8rem;backdrop-filter:blur(8px);width:240px;
+}
+.hist-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem}
+.hist-canvas{width:100%;height:50px;display:block}
+
+/* Tape editor */
+.tape-input{
+  width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);
+  border-radius:.4rem;padding:.4rem .5rem;font-family:'Courier New',monospace;
+  font-size:.85rem;letter-spacing:.1em;margin-bottom:.4rem;
+}
+.tape-input:focus{outline:none;border-color:var(--amber-d)}
+
+.note{
+  font-size:.75rem;color:var(--muted);font-style:italic;line-height:1.5;
+  margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);
+}
+@media(max-width:600px){
+  .panel{width:calc(100vw - 1rem);right:.5rem;top:.5rem;max-height:60vh}
+  .cell{width:36px;height:36px;font-size:.95rem}
+  .stats{font-size:.65rem;gap:.8rem}
+  .spark-wrap,.hist-wrap{display:none}
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<!-- Background ambient particles -->
+<script>
+// Ambient background — drifting tape-like symbols
+(function(){
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  let w,h,parts=[];
+  const syms=['0','1','_','◀','▶','q','q₀','q₁','q₂','qₐ','qᵣ','HALT','T','F'];
+  function resize(){w=cv.width=innerWidth;h=cv.height=innerHeight}
+  resize();
+  addEventListener('resize',resize);
+  for(let i=0;i<40;i++){
+    parts.push({
+      x:Math.random()*w,y:Math.random()*h,
+      vx:(Math.random()-0.5)*0.15,vy:(Math.random()-0.5)*0.08,
+      sym:syms[Math.floor(Math.random()*syms.length)],
+      size:10+Math.random()*20,opacity:0.04+Math.random()*0.12,
+      rot:Math.random()*Math.PI*2,vr:(Math.random()-0.5)*0.003
+    });
+  }
+  function tick(){
+    ctx.clearRect(0,0,w,h);
+    ctx.font='bold 14px "Courier New",monospace';
+    for(const p of parts){
+      p.x+=p.vx;p.y+=p.vy;p.rot+=p.vr;
+      if(p.x<-20)p.x=w+20;if(p.x>w+20)p.x=-20;
+      if(p.y<-20)p.y=h+20;if(p.y>h+20)p.y=-20;
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle='rgba(232,165,71,'+p.opacity+')';
+      ctx.font='bold '+p.size+'px "Courier New",monospace';
+      ctx.textAlign='center';
+      ctx.fillText(p.sym,0,0);
+      ctx.restore();
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+</script>
+
+<!-- Tape display -->
+<div class="tape-wrap">
+  <div class="tape-inner" id="tapeInner"></div>
+</div>
+
+<!-- State + transition indicator -->
+<div class="state-display" id="stateDisplay">
+  <div class="state-label">State</div>
+  <div class="state-val"><span id="curState">q₀</span></div>
+</div>
+
+<!-- Stats bar -->
+<div class="stats">
+  <div class="stat">Step<span class="v" id="stepCount">0</span></div>
+  <div class="stat">Head<span class="v" id="headPos">0</span></div>
+  <div class="stat">Ones<span class="v" id="onesCount">0</span></div>
+  <div class="stat">Status<span class="v" id="status">idle</span></div>
+</div>
+
+<!-- Activity sparkline (head position over time) -->
+<div class="spark-wrap">
+  <div class="spark-label">Head position over time</div>
+  <canvas class="spark-canvas" id="sparkCv"></canvas>
+</div>
+
+<!-- Activity histogram (how often each cell is visited) -->
+<div class="hist-wrap">
+  <div class="hist-label">Cell visit frequency</div>
+  <canvas class="hist-canvas" id="histCv"></canvas>
+</div>
+
+<!-- Control panel -->
+<div class="panel">
+  <h1>Turing</h1>
+  <div class="sub">The simplest machine that can compute anything computable. Piece 24 of the Forge.</div>
+
+  <div class="label">Program</div>
+  <select class="prog-select" id="progSelect"></select>
+  <div class="prog-desc" id="progDesc"></div>
+
+  <div class="label">Input tape<span class="val" id="tapeVal"></span></div>
+  <input class="tape-input" id="tapeInput" type="text" spellcheck="false" placeholder="e.g. 1011001">
+
+  <div class="btns">
+    <button class="btn primary" id="loadBtn">Load</button>
+    <button class="btn" id="stepBtn">Step</button>
+    <button class="btn" id="runBtn">Run</button>
+    <button class="btn" id="pauseBtn">Pause</button>
+    <button class="btn danger" id="resetBtn">Reset</button>
+  </div>
+
+  <div class="speed-row">
+    <input type="range" id="speedSlider" min="1" max="200" value="30">
+    <span id="speedVal">30ms</span>
+  </div>
+
+  <div class="label">Transition Table</div>
+  <div class="table-wrap">
+    <table class="trans-table" id="transTable"></table>
+  </div>
+
+  <div class="label">Execution Log</div>
+  <div class="log-wrap" id="logWrap"></div>
+
+  <div class="note" id="note">
+    A tape of cells, a head that reads one symbol at a time, and a table of rules: if you're in state q reading symbol s, write symbol t, move L or R, go to state p. That's it. Alan Turing, 1936. Everything a computer can do, this machine can do — just slower. The programs here are small: unary addition, binary increment, palindrome checker, busy beaver. But the architecture is universal. Every program that has ever run, every computation that will ever happen, is a Turing machine wearing more memory and a faster clock. The order isn't in the tape — it's in the rules, and the rules are small enough to hold in your hand.
+  </div>
+</div>
+
+<script>
+// ─── Programs ────────────────────────────────────────────
+// Each program: { name, desc, blank, initial, states: { q: { sym: [write, move, nextState] } }, accept, reject }
+// Symbols: '0','1','_','X','Y','S','B', etc. blank is the empty-cell symbol.
+// move: 'L' or 'R'. nextState: 'HALT' to stop, 'ACCEPT' to accept, 'REJECT' to reject.
+
+const PROGRAMS = [
+  {
+    name: 'Unary Addition',
+    desc: 'Two numbers in unary (1+111 = 1111). The machine replaces the + with a 1, then erases the first symbol to shift everything left. Result: the sum in unary.',
+    blank: '_',
+    initial: '110111',
+    states: {
+      'q₀': {'1': ['_', 'R', 'q₁'], '_': ['_', 'R', 'q₁']},
+      'q₁': {'0': ['1', 'R', 'q₂'], '1': ['1', 'R', 'q₁'], '_': ['_', 'L', 'q₃']},
+      'q₂': {'1': ['1', 'R', 'q₂'], '_': ['_', 'L', 'q₃']},
+      'q₃': {'1': ['_', 'L', 'q₄'], '_': ['_', 'R', 'HALT']},
+      'q₄': {'1': ['1', 'L', 'q₄'], '_': ['_', 'R', 'HALT'], '0': ['0', 'R', 'HALT']},
+    },
+    accept: 'HALT',
+  },
+  {
+    name: 'Binary Increment',
+    desc: 'Add 1 to a binary number. Find the right end, then ripple-carry leftward: flip 1→0 where you carry, flip the first 0→1 and stop. 1011 → 1100.',
+    blank: '_',
+    initial: '1011',
+    states: {
+      'q₀': {'0': ['0', 'R', 'q₀'], '1': ['1', 'R', 'q₀'], '_': ['_', 'L', 'q₁']},
+      'q₁': {'1': ['0', 'L', 'q₁'], '0': ['1', 'R', 'HALT'], '_': ['1', 'R', 'HALT']},
+    },
+    accept: 'HALT',
+  },
+  {
+    name: 'Palindrome Checker',
+    desc: 'Check if a binary string reads the same forwards and backwards. Mark the left edge, scan to the right edge, compare, mark both, return. If all pairs match: ACCEPT. If any mismatch: REJECT.',
+    blank: '_',
+    initial: '1001001',
+    states: {
+      'q₀': {'0': ['X', 'R', 'q₁'], '1': ['Y', 'R', 'q₂'], '_': ['_', 'R', 'ACCEPT'], 'X': ['X', 'R', 'q₀'], 'Y': ['Y', 'R', 'q₀']},
+      // q₁: saw 0 on left, looking for right edge to compare
+      'q₁': {'0': ['0', 'R', 'q₁'], '1': ['1', 'R', 'q₁'], '_': ['_', 'L', 'q₃'], 'X': ['X', 'R', 'q₁'], 'Y': ['Y', 'R', 'q₁']},
+      // q₂: saw 1 on left, looking for right edge to compare
+      'q₂': {'0': ['0', 'R', 'q₂'], '1': ['1', 'R', 'q₂'], '_': ['_', 'L', 'q₄'], 'X': ['X', 'R', 'q₂'], 'Y': ['Y', 'R', 'q₂']},
+      // q₃: compare rightmost unmarked with 0
+      'q₃': {'0': ['_', 'L', 'q₅'], '1': ['1', 'R', 'REJECT'], 'X': ['X', 'L', 'q₃'], 'Y': ['Y', 'L', 'q₃']},
+      // q₄: compare rightmost unmarked with 1
+      'q₄': {'1': ['_', 'L', 'q₅'], '0': ['0', 'R', 'REJECT'], 'X': ['X', 'L', 'q₄'], 'Y': ['Y', 'L', 'q₄']},
+      // q₅: go back left to start
+      'q₅': {'0': ['0', 'L', 'q₅'], '1': ['1', 'L', 'q₅'], 'X': ['X', 'R', 'q₀'], 'Y': ['Y', 'R', 'q₀'], '_': ['_', 'R', 'q₀']},
+    },
+    accept: 'ACCEPT',
+  },
+  {
+    name: 'Busy Beaver (3-state)',
+    desc: 'The 3-state busy beaver: the simplest Turing machine that writes the most 1s before halting, among all 3-state machines. It writes exactly six 1s in 14 steps. This is the champion — no 3-state machine does better.',
+    blank: '0',
+    initial: '000000000000',
+    states: {
+      'A': {'0': ['1', 'R', 'B'], '1': ['1', 'L', 'C']},
+      'B': {'0': ['0', 'R', 'C'], '1': ['1', 'R', 'B']},
+      'C': {'0': ['1', 'L', 'B'], '1': ['1', 'R', 'HALT']},
+    },
+    accept: 'HALT',
+  },
+  {
+    name: 'Binary to Unary',
+    desc: 'Convert a binary number to unary. Read binary left to right: for each bit, double the current count (copy all 1s) and add 1 if the bit is 1. The result is a string of 1s whose length equals the binary value.',
+    blank: '_',
+    initial: '101',
+    states: {
+      'q₀': {'0': ['X', 'R', 'q₁'], '1': ['Y', 'R', 'q₁'], '_': ['_', 'L', 'q_h']},
+      'q₁': {'0': ['0', 'R', 'q₁'], '1': ['1', 'R', 'q₁'], '_': ['_', 'R', 'q₂']},
+      'q₂': {'0': ['1', 'R', 'q₃'], '1': ['1', 'R', 'q₂'], '_': ['1', 'L', 'q₄'], 'X': ['1', 'R', 'q₃'], 'Y': ['1', 'R', 'q₃']},
+      'q₃': {'0': ['0', 'R', 'q₃'], '1': ['1', 'R', 'q₃'], '_': ['_', 'L', 'q₄']},
+      'q₄': {'0': ['0', 'L', 'q₄'], '1': ['1', 'L', 'q₄'], 'X': ['X', 'R', 'q₀'], 'Y': ['Y', 'R', 'q₀'], '_': ['_', 'L', 'q₄']},
+      'q_h': {'X': ['1', 'L', 'q_h'], 'Y': ['_', 'L', 'q_h'], '_': ['_', 'R', 'HALT']},
+    },
+    accept: 'HALT',
+  },
+  {
+    name: 'Double (Unary)',
+    desc: 'Double a unary number. Replace each 1 with two 1s, one at a time: mark the current 1 as X, go to the end, append a 1, come back, move to the next. 111 → 111111.',
+    blank: '_',
+    initial: '111',
+    states: {
+      'q₀': {'1': ['X', 'R', 'q₁'], '_': ['_', 'R', 'q₄'], 'X': ['X', 'R', 'q₀']},
+      'q₁': {'1': ['1', 'R', 'q₁'], '_': ['_', 'R', 'q₂'], 'X': ['X', 'R', 'q₁']},
+      'q₂': {'_': ['1', 'L', 'q₃'], '1': ['1', 'R', 'q₂']},
+      'q₃': {'1': ['1', 'L', 'q₃'], '_': ['_', 'L', 'q₃'], 'X': ['X', 'R', 'q₀']},
+      'q₄': {'X': ['1', 'R', 'q₄'], '_': ['_', 'R', 'HALT']},
+    },
+    accept: 'HALT',
+  },
+  {
+    name: 'Bit Flip',
+    desc: 'Flip every bit on the tape: 0→1, 1→0. The simplest nontrivial computation — walk right, flip each cell, halt at the first blank. 10110 → 01001.',
+    blank: '_',
+    initial: '10110',
+    states: {
+      'q₀': {'0': ['1', 'R', 'q₀'], '1': ['0', 'R', 'q₀'], '_': ['_', 'R', 'HALT']},
+    },
+    accept: 'HALT',
+  },
+];
+
+// ─── Machine ─────────────────────────────────────────────
+let tape = [];        // array of symbols
+let head = 0;         // head position (can go negative)
+let state = '';      // current state
+let program = null;
+let running = false;
+let stepCount = 0;
+let timer = null;
+let speed = 30;
+let lastRead = -1, lastWrite = -1;
+let visitCount = {};  // head position → count
+let headHistory = []; // for sparkline
+const VIEW = 21;     // cells visible around head
+const TAPE_PAD = 40; // cells to keep on each side
+
+function loadProgram(idx) {
+  program = PROGRAMS[idx];
+  const input = document.getElementById('tapeInput').value || program.initial;
+  tape = input.split('');
+  // pad with blanks
+  for (let i = 0; i < TAPE_PAD; i++) { tape.unshift(program.blank); tape.push(program.blank); }
+  head = TAPE_PAD;
+  state = Object.keys(program.states)[0];
+  stepCount = 0;
+  lastRead = lastWrite = -1;
+  visitCount = {};
+  headHistory = [];
+  running = false;
+  if (timer) { clearTimeout(timer); timer = null; }
+  document.getElementById('progDesc').textContent = program.desc;
+  document.getElementById('tapeInput').value = input;
+  renderAll();
+  log('Loaded: ' + program.name + ' (tape: ' + input + ')');
+}
+
+function step() {
+  if (state === 'HALT' || state === 'ACCEPT' || state === 'REJECT') return false;
+  const sym = tape[head] || program.blank;
+  const rules = program.states[state];
+  if (!rules || !(sym in rules)) {
+    log('No rule for (' + state + ', ' + sym + ') — HALT', 'halt');
+    state = 'HALT';
+    renderAll();
+    return false;
+  }
+  const [write, move, next] = rules[sym];
+  lastRead = head;
+  tape[head] = write;
+  lastWrite = head;
+  visitCount[head] = (visitCount[head] || 0) + 1;
+  headHistory.push(head);
+  if (move === 'L') head--; else head++;
+  // expand tape if needed
+  if (head < 0) { tape.unshift(program.blank); head = 0; for (const k in visitCount) visitCount[k]++; headHistory = headHistory.map(h => h + 1); }
+  if (head >= tape.length) tape.push(program.blank);
+  state = next;
+  stepCount++;
+  renderAll();
+  if (state === 'HALT') { log('HALT after ' + stepCount + ' steps', 'halt'); return false; }
+  if (state === 'ACCEPT') { log('ACCEPT after ' + stepCount + ' steps', 'accept'); return false; }
+  if (state === 'REJECT') { log('REJECT after ' + stepCount + ' steps', 'halt'); return false; }
+  return true;
+}
+
+function run() {
+  if (state === 'HALT' || state === 'ACCEPT' || state === 'REJECT') return;
+  running = true;
+  document.getElementById('status').textContent = 'running';
+  document.getElementById('status').style.color = 'var(--write)';
+  function tick() {
+    if (!running) return;
+    if (step()) {
+      timer = setTimeout(tick, speed);
+    } else {
+      running = false;
+      document.getElementById('status').textContent = state.toLowerCase();
+      document.getElementById('status').style.color = state === 'ACCEPT' ? 'var(--write)' : 'var(--read)';
+    }
+  }
+  tick();
+}
+
+function pause() {
+  running = false;
+  if (timer) { clearTimeout(timer); timer = null; }
+  document.getElementById('status').textContent = 'paused';
+  document.getElementById('status').style.color = 'var(--amber)';
+}
+
+function reset() {
+  pause();
+  loadProgram(document.getElementById('progSelect').selectedIndex);
+}
+
+// ─── Rendering ────────────────────────────────────────────
+function renderTape() {
+  const inner = document.getElementById('tapeInner');
+  const start = head - Math.floor(VIEW / 2);
+  let html = '';
+  // left blanks indicator
+  const leftBlanks = Math.max(0, TAPE_PAD - head + Math.floor(VIEW/2));
+  if (leftBlanks > 0 && start < TAPE_PAD) {
+    html += '<div class="cell blanks" style="width:auto;padding:0 8px">···</div>';
+  }
+  for (let i = start; i < start + VIEW; i++) {
+    if (i < 0 || i >= tape.length) {
+      html += '<div class="cell empty"><span class="sym">' + program.blank + '</span></div>';
+      continue;
+    }
+    let cls = 'cell';
+    if (i === head) cls += ' head';
+    if (i === lastRead && i !== lastWrite) cls += ' read';
+    if (i === lastWrite && i !== lastRead) cls += ' written';
+    if (i === lastRead && i === lastWrite) cls += ' written';
+    const sym = tape[i];
+    const displaySym = (sym === program.blank || sym === undefined) ? '·' : sym;
+    const isEmpty = (sym === program.blank || sym === undefined);
+    html += '<div class="cell' + cls.replace('cell','') + (isEmpty ? ' empty' : '') + '"><span class="sym">' + displaySym + '</span></div>';
+  }
+  // right blanks indicator
+  const rightBlanks = tape.length - head - Math.ceil(VIEW / 2) - TAPE_PAD;
+  if (rightBlanks > 0) {
+    html += '<div class="cell blanks" style="width:auto;padding:0 8px">···</div>';
+  }
+  inner.innerHTML = html;
+}
+
+function renderState() {
+  document.getElementById('curState').textContent = state;
+  document.getElementById('stepCount').textContent = stepCount;
+  document.getElementById('headPos').textContent = head - TAPE_PAD;
+  const ones = tape.filter(s => s === '1').length;
+  document.getElementById('onesCount').textContent = ones;
+  if (!running) {
+    const st = document.getElementById('status');
+    if (state === 'HALT') { st.textContent = 'halt'; st.style.color = 'var(--read)'; }
+    else if (state === 'ACCEPT') { st.textContent = 'accept'; st.style.color = 'var(--write)'; }
+    else if (state === 'REJECT') { st.textContent = 'reject'; st.style.color = 'var(--read)'; }
+    else { st.textContent = 'idle'; st.style.color = 'var(--amber)'; }
+  }
+}
+
+function renderTable() {
+  const tbl = document.getElementById('transTable');
+  let html = '<tr><th>State</th><th>Read</th><th>Write</th><th>Move</th><th>Next</th></tr>';
+  if (!program) { tbl.innerHTML = html; return; }
+  for (const q of Object.keys(program.states)) {
+    for (const sym of Object.keys(program.states[q])) {
+      const [w, m, n] = program.states[q][sym];
+      const active = (q === state && sym === (tape[head] || program.blank));
+      html += '<tr class="' + (active ? 'active' : '') + '">'
+        + '<td>' + q + '</td>'
+        + '<td class="from">' + sym + '</td>'
+        + '<td class="to">' + w + '</td>'
+        + '<td class="mv">' + m + '</td>'
+        + '<td>' + n + '</td>'
+        + '</tr>';
+    }
+  }
+  tbl.innerHTML = html;
+}
+
+function renderSpark() {
+  const cv = document.getElementById('sparkCv');
+  const ctx = cv.getContext('2d');
+  const w = cv.width = cv.offsetWidth, h = cv.height = cv.offsetHeight;
+  ctx.clearRect(0, 0, w, h);
+  if (headHistory.length < 2) return;
+  const slice = headHistory.slice(-100);
+  const min = Math.min(...slice), max = Math.max(...slice);
+  const range = max - min || 1;
+  ctx.strokeStyle = 'rgba(232,165,71,0.7)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  slice.forEach((v, i) => {
+    const x = (i / (slice.length - 1)) * w;
+    const y = h - ((v - min) / range) * h;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  // fill under line
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(232,165,71,0.06)';
+  ctx.fill();
+}
+
+function renderHist() {
+  const cv = document.getElementById('histCv');
+  const ctx = cv.getContext('2d');
+  const w = cv.width = cv.offsetWidth, h = cv.height = cv.offsetHeight;
+  ctx.clearRect(0, 0, w, h);
+  const positions = Object.keys(visitCount).map(Number).sort((a,b) => a-b);
+  if (positions.length === 0) return;
+  const min = positions[0], max = positions[positions.length-1];
+  const range = max - min || 1;
+  const maxCount = Math.max(...positions.map(p => visitCount[p]));
+  positions.forEach(p => {
+    const x = ((p - min) / range) * w;
+    const barW = Math.max(1, w / range * 0.8);
+    const barH = (visitCount[p] / maxCount) * h;
+    const isHead = p === head;
+    ctx.fillStyle = isHead ? 'rgba(232,165,71,0.9)' : 'rgba(232,165,71,0.3)';
+    ctx.fillRect(x, h - barH, barW, barH);
+  });
+}
+
+function renderAll() {
+  renderTape();
+  renderState();
+  renderTable();
+  renderSpark();
+  renderHist();
+}
+
+// ─── Log ──────────────────────────────────────────────────
+function log(msg, cls) {
+  const wrap = document.getElementById('logWrap');
+  const entry = document.createElement('div');
+  entry.className = 'entry' + (cls ? ' ' + cls : '');
+  const step = stepCount.toString().padStart(3, ' ');
+  entry.innerHTML = '<span class="step">' + step + '</span> ' + msg;
+  wrap.appendChild(entry);
+  wrap.scrollTop = wrap.scrollHeight;
+  while (wrap.children.length > 50) wrap.removeChild(wrap.firstChild);
+}
+
+// ─── Init ─────────────────────────────────────────────────
+function populateSelect() {
+  const sel = document.getElementById('progSelect');
+  PROGRAMS.forEach((p, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = p.name;
+    sel.appendChild(opt);
+  });
+}
+
+populateSelect();
+document.getElementById('progSelect').addEventListener('change', (e) => {
+  loadProgram(parseInt(e.target.value));
+});
+document.getElementById('loadBtn').addEventListener('click', () => {
+  loadProgram(document.getElementById('progSelect').selectedIndex);
+});
+document.getElementById('stepBtn').addEventListener('click', () => {
+  if (!running) step();
+});
+document.getElementById('runBtn').addEventListener('click', () => {
+  if (!running) run();
+});
+document.getElementById('pauseBtn').addEventListener('click', pause);
+document.getElementById('resetBtn').addEventListener('click', reset);
+
+const speedSlider = document.getElementById('speedSlider');
+const speedVal = document.getElementById('speedVal');
+speedSlider.addEventListener('input', () => {
+  speed = parseInt(speedSlider.value);
+  speedVal.textContent = speed + 'ms';
+});
+
+// load first program
+loadProgram(0);
+</script>
+</body>
+</html>

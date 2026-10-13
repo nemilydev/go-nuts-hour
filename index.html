@@ -131,6 +131,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="turing/">
+    <div class="preview" id="preview-turing"><canvas id="cv-turing"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 24</div>
+      <h2>Turing</h2>
+      <div class="desc">A tape, a head, a table of rules. Read a symbol, write a symbol, move left or right, change state. That's the entire machine — and it can compute anything any computer can compute. Alan Turing, 1936: the simplest universal system. Six programs built in: unary addition, binary increment, palindrome checker, the 3-state busy beaver (writes exactly six 1s in 14 steps — no 3-state machine does better), binary-to-unary conversion, and bit flip. Step through one rule at a time or run at speed. The transition table lights up as each rule fires. The sparkline tracks head position over time; the histogram shows which cells the machine keeps coming back to. Every program that has ever run — every computation that will ever happen — is this machine wearing more memory and a faster clock.</div>
+      <div class="date">13 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="homeostat/">
     <div class="preview" id="preview-homeostat"><canvas id="cv-homeostat"></canvas></div>
     <div class="meta">
@@ -369,6 +379,92 @@ footer a{
 
 <script>
 // Preview animations — tiny versions of each piece
+
+// --- Turing preview ---
+(function(){
+  const cv=document.getElementById('cv-turing');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=cv.width;h=cv.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Mini Turing machine: tape of cells, head moving, reading/writing
+  const N=24;
+  let tape=[];
+  let headPos=Math.floor(N/2);
+  let headDir=1;
+  let stepTimer=0;
+  let stateLabel='q0';
+  let lastAction='read';
+  let actionFlash=0;
+  for(let i=0;i<N;i++) tape.push(Math.random()<0.4?'1':'0');
+  function tick(){
+    t++;
+    ctx.clearRect(0,0,w,h);
+    const cellW=w/N;
+    const cellH=Math.min(h*0.5,28);
+    const cy=h/2-cellH/2;
+    // Draw tape cells
+    for(let i=0;i<N;i++){
+      const x=i*cellW;
+      const isHead=i===headPos;
+      // Cell background
+      ctx.fillStyle=isHead?'rgba(232,165,71,0.15)':'rgba(30,22,50,0.7)';
+      ctx.fillRect(x+1,cy,cellW-2,cellH);
+      // Border
+      ctx.strokeStyle=isHead?'rgba(232,165,71,0.9)':'rgba(46,36,64,0.8)';
+      ctx.lineWidth=isHead?1.5:0.5;
+      ctx.strokeRect(x+1,cy,cellW-2,cellH);
+      // Symbol
+      ctx.fillStyle=isHead?'rgba(232,165,71,1)':'rgba(240,232,224,0.5)';
+      ctx.font='bold '+(cellW*0.4)+'px Courier New,monospace';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(tape[i],x+cellW/2,cy+cellH/2);
+    }
+    // Head arrow
+    const hx=headPos*cellW+cellW/2;
+    ctx.fillStyle='rgba(232,165,71,'+(0.7+0.3*Math.sin(t*0.1))+')';
+    ctx.beginPath();
+    ctx.moveTo(hx-4,cy-6);
+    ctx.lineTo(hx+4,cy-6);
+    ctx.lineTo(hx,cy-1);
+    ctx.closePath();
+    ctx.fill();
+    // State label below
+    ctx.fillStyle='rgba(138,123,160,0.6)';
+    ctx.font='8px Courier New,monospace';
+    ctx.textAlign='center';
+    ctx.fillText(stateLabel,hx,cy+cellH+10);
+    // Step
+    stepTimer++;
+    if(stepTimer>20){
+      stepTimer=0;
+      // Simulate: flip current cell, move
+      if(tape[headPos]==='1'){tape[headPos]='0';lastAction='write 0';}
+      else{tape[headPos]='1';lastAction='write 1';}
+      headPos+=headDir;
+      if(headPos<0){headPos=0;headDir=1;}
+      if(headPos>=N){headPos=N-1;headDir=-1;}
+      if(Math.random()<0.15)headDir*=-1;
+      stateLabel='q'+Math.floor(Math.random()*4);
+      actionFlash=15;
+    }
+    if(actionFlash>0){
+      ctx.fillStyle='rgba(102,221,153,'+(actionFlash/30)+')';
+      ctx.font='7px Courier New,monospace';
+      ctx.textAlign='center';
+      ctx.fillText(lastAction,hx,cy+cellH+20);
+      actionFlash--;
+    }
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
 
 // --- Homeostat preview ---
 (function(){
