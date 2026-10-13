@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Homeostat — a system that rewrites its own connections when it fails, and doesn't stop until it works again. Ashby, 1952. Piece 23 of the Forge.">
+<title>Homeostat — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='3' fill='none' stroke='%23e8a547' stroke-width='1.5'/><circle cx='8' cy='8' r='1' fill='%23e8a547'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;--bg-2:#1a1428;--card:#1e1632;--card-h:#261a3e;
+  --text:#f0e8e0;--muted:#8a7ba0;--amber:#e8a547;--amber-d:#a87530;
+  --border:#2e2440;--excite:#e8a547;--inhib:#66aaff;--danger:#ff6666;--safe:#66dd99;
+}
+body{background:var(--bg);color:var(--text);font-family:'Georgia','Times New Roman',serif;line-height:1.75;overflow:hidden;height:100vh}
+#cv{display:block;position:fixed;top:0;left:0;width:100vw;height:100vh;cursor:crosshair}
+.panel{
+  position:fixed;top:1rem;right:1rem;width:280px;max-width:calc(100vw - 2rem);
+  background:rgba(18,14,26,0.92);border:1px solid var(--border);border-radius:0.75rem;
+  padding:1rem 1.2rem;backdrop-filter:blur(8px);z-index:10;max-height:calc(100vh - 2rem);overflow-y:auto;
+}
+.panel h1{font-size:1.15rem;font-weight:normal;color:var(--amber);letter-spacing:.03em;margin-bottom:.2rem}
+.panel .sub{font-size:.75rem;color:var(--muted);font-style:italic;margin-bottom:.8rem}
+.panel .label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:.7rem 0 .3rem}
+.btn{
+  background:var(--card);border:1px solid var(--border);border-radius:.4rem;padding:.4rem .7rem;
+  color:var(--text);font-family:inherit;font-size:.78rem;cursor:pointer;transition:all .2s;width:100%;
+  margin-top:.3rem;text-align:center;
+}
+.btn:hover{background:var(--card-h);border-color:var(--amber-d)}
+.btn-row{display:flex;gap:6px}
+.btn-row .btn{flex:1}
+.slider-wrap{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted)}
+.slider-wrap input[type=range]{flex:1;accent-color:var(--amber)}
+.slider-wrap .val{min-width:36px;text-align:right;color:var(--text)}
+.toggle{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text);cursor:pointer;margin-top:.4rem}
+.toggle input{accent-color:var(--amber)}
+.stats{font-size:.72rem;color:var(--muted);margin-top:.5rem;line-height:1.5}
+.stats .s{color:var(--text)}
+.stats .danger{color:var(--danger)}
+.stats .safe{color:var(--safe)}
+.desc{
+  position:fixed;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(18,14,26,0.95) 30%);
+  padding:2rem 1.5rem 1.2rem;color:var(--muted);font-size:.82rem;font-style:italic;pointer-events:none;z-index:5;
+  max-height:35vh;overflow-y:auto;
+}
+.desc .title{font-size:.95rem;color:var(--amber);font-style:normal;margin-bottom:.3rem;letter-spacing:.02em}
+.desc p{margin-bottom:.3rem}
+.desc strong{color:var(--text);font-style:normal;font-weight:normal}
+.desc .close{position:absolute;top:.5rem;right:1rem;color:var(--muted);cursor:pointer;font-size:1.1rem;pointer-events:auto;font-style:normal}
+.desc .close:hover{color:var(--amber)}
+@media(max-width:640px){
+  .panel{width:calc(100vw - 2rem);max-height:50vh}
+  .desc{max-height:30vh;font-size:.75rem}
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="panel">
+  <h1>Homeostat</h1>
+  <div class="sub">Ashby, 1952 — piece 23</div>
+
+  <div class="label">Perturb</div>
+  <div class="btn-row">
+    <button class="btn" id="pokeBtn">Poke a unit</button>
+    <button class="btn" id="shatterBtn">Shatter</button>
+  </div>
+
+  <div class="label">System</div>
+  <button class="btn" id="reorgBtn">Force reorganization</button>
+  <button class="btn" id="resetBtn">Reset all connections</button>
+
+  <div class="label">Speed</div>
+  <div class="slider-wrap">
+    <input type="range" id="speedSlider" min="0.3" max="3" step="0.1" value="1">
+    <span class="val" id="speedVal">1.0×</span>
+  </div>
+
+  <label class="toggle"><input type="checkbox" id="showWeights" checked> Show connection weights</label>
+  <label class="toggle"><input type="checkbox" id="autoPerturb"> Auto-perturb every 8s</label>
+
+  <div class="stats" id="stats">
+    State: <span class="s safe" id="stateLabel">Stable</span><br>
+    Reorganizations: <span class="s" id="reorgCount">0</span><br>
+    Time stable: <span class="s" id="stableTime">0.0s</span>
+  </div>
+</div>
+
+<div class="desc" id="desc">
+  <span class="close" onclick="document.getElementById('desc').style.display='none'">×</span>
+  <div class="title">Homeostat</div>
+  <p>Four units, each holding a value, each connected to the others with weighted lines. The connections push and pull — some excite, some inhibit — and the values drift. When every value stays inside its viable range, the system is <strong>stable</strong>.</p>
+  <p>When a value leaves its range, the system is <strong>unstable</strong> — and it rewrites itself. A random connection changes its weight. If that doesn't work, another connection changes. The system doesn't know what the right wiring is. It doesn't know what destabilized it. It just keeps changing itself until the values come home.</p>
+  <p>This is W. Ross Ashby's <strong>ultrastability</strong>, 1952: a system that adapts its own structure, not just its state. It doesn't reorganize toward a goal — it reorganizes until it stops failing. The stability that emerges was never designed. It was found. <strong>Click a unit to perturb it. Watch the system rewrite itself. Press Shatter to break everything at once.</strong></p>
+</div>
+
+<script>
+// --- Homeostat: Ashby's ultrastable system ---
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W, H;
+
+function resize() {
+  W = cv.width = window.innerWidth;
+  H = cv.height = window.innerHeight;
+  layoutUnits();
+}
+window.addEventListener('resize', resize);
+
+// --- Units ---
+const N = 4;
+let units = [];
+let connections = []; // [i][j] = weight from unit j to unit i
+let viableMin = -1.0, viableMax = 1.0;
+let speedMult = 1.0;
+let showWeights = true;
+let autoPerturb = false;
+let unstable = false;
+let reorgCount = 0;
+let stableTimer = 0;
+let reorgCooldown = 0;
+let lastPerturb = 0;
+let pulseRing = null; // visual feedback on reorganization
+
+function layoutUnits() {
+  const cx = W / 2, cy = H / 2;
+  const r = Math.min(W, H) * 0.28;
+  for (let i = 0; i < N; i++) {
+    const ang = (i / N) * Math.PI * 2 - Math.PI / 2;
+    units[i].x = cx + Math.cos(ang) * r;
+    units[i].y = cy + Math.sin(ang) * r;
+  }
+}
+
+function initSystem() {
+  units = [];
+  for (let i = 0; i < N; i++) {
+    units.push({
+      value: (Math.random() - 0.5) * 0.6,
+      vx: 0,
+      x: 0, y: 0,
+      label: String.fromCharCode(65 + i),
+      flash: 0,
+    });
+  }
+  connections = [];
+  for (let i = 0; i < N; i++) {
+    connections.push([]);
+    for (let j = 0; j < N; j++) {
+      if (i === j) {
+        connections[i].push(-0.15 + Math.random() * 0.1); // mild self-damping
+      } else {
+        connections[i].push((Math.random() - 0.5) * 0.8);
+      }
+    }
+  }
+  layoutUnits();
+  unstable = false;
+  reorgCount = 0;
+  stableTimer = 0;
+  reorgCooldown = 0;
+}
+
+function checkStability() {
+  for (const u of units) {
+    if (u.value < viableMin || u.value > viableMax) return false;
+  }
+  return true;
+}
+
+function reorganize() {
+  // Change a random connection (not self-connection)
+  let attempts = 0;
+  while (attempts < 20) {
+    const i = Math.floor(Math.random() * N);
+    const j = Math.floor(Math.random() * N);
+    if (i !== j) {
+      connections[i][j] = (Math.random() - 0.5) * 1.5;
+      reorgCount++;
+      pulseRing = { x: units[i].x, y: units[i].y, r: 0, life: 1 };
+      units[i].flash = 1;
+      return;
+    }
+    attempts++;
+  }
+}
+
+function perturbUnit(idx, magnitude) {
+  if (idx < 0 || idx >= N) return;
+  units[idx].value += magnitude;
+  units[idx].flash = 1;
+  unstable = !checkStability();
+}
+
+function perturbRandom() {
+  const idx = Math.floor(Math.random() * N);
+  const mag = 1.5 + Math.random() * 1.0;
+  const sign = Math.random() < 0.5 ? -1 : 1;
+  perturbUnit(idx, sign * mag);
+}
+
+function shatterAll() {
+  for (const u of units) {
+    u.value = (Math.random() - 0.5) * 4;
+    u.flash = 1;
+  }
+  unstable = true;
+}
+
+// --- Simulation ---
+function step(dt) {
+  // Update values based on connections
+  const newValues = new Array(N);
+  for (let i = 0; i < N; i++) {
+    let input = 0;
+    for (let j = 0; j < N; j++) {
+      input += connections[i][j] * units[j].value;
+    }
+    // Simple first-order dynamics: value drifts toward input
+    units[i].vx = units[i].vx * 0.92 + input * 0.08;
+    newValues[i] = units[i].value + units[i].vx * dt * speedMult;
+  }
+  for (let i = 0; i < N; i++) units[i].value = newValues[i];
+
+  // Check stability
+  const wasUnstable = unstable;
+  unstable = !checkStability();
+
+  if (unstable) {
+    stableTimer = 0;
+    reorgCooldown -= dt;
+    if (reorgCooldown <= 0) {
+      reorganize();
+      reorgCooldown = 0.15 + Math.random() * 0.1; // reorg rate
+    }
+  } else {
+    if (wasUnstable) {
+      // Just became stable — celebrate briefly
+      for (const u of units) u.flash = 0.5;
+    }
+    stableTimer += dt;
+  }
+
+  // Decay flashes
+  for (const u of units) u.flash = Math.max(0, u.flash - dt * 2);
+
+  // Pulse ring
+  if (pulseRing) {
+    pulseRing.r += dt * 120;
+    pulseRing.life -= dt * 1.5;
+    if (pulseRing.life <= 0) pulseRing = null;
+  }
+
+  // Auto-perturb
+  if (autoPerturb) {
+    lastPerturb += dt;
+    if (lastPerturb > 8) {
+      perturbRandom();
+      lastPerturb = 0;
+    }
+  }
+}
+
+// --- Rendering ---
+function valueColor(v) {
+  // Map value to color: in range = amber, outside = red
+  if (v < viableMin || v > viableMax) return '#ff6666';
+  const t = (v - viableMin) / (viableMax - viableMin);
+  // center = bright amber, edges = dimmer
+  const intensity = 0.5 + 0.5 * Math.cos((t - 0.5) * Math.PI);
+  return `rgba(232,165,71,${0.4 + intensity * 0.5})`;
+}
+
+function draw() {
+  ctx.fillStyle = '#120e1a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw connections
+  if (showWeights) {
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        if (i === j) continue;
+        const w = connections[i][j];
+        if (Math.abs(w) < 0.02) continue;
+        const u1 = units[i], u2 = units[j];
+        const isExcite = w > 0;
+        const alpha = Math.min(Math.abs(w) * 0.6, 0.5);
+        const col = isExcite
+          ? `rgba(232,165,71,${alpha})`
+          : `rgba(102,170,255,${alpha})`;
+        ctx.strokeStyle = col;
+        ctx.lineWidth = Math.min(Math.abs(w) * 2.5, 3);
+        ctx.beginPath();
+        ctx.moveTo(u1.x, u1.y);
+        ctx.lineTo(u2.x, u2.y);
+        ctx.stroke();
+
+        // Arrow direction (from j to i, meaning i receives from j)
+        const dx = u2.x - u1.x, dy = u2.y - u1.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const mx = u1.x + dx * 0.55, my = u1.y + dy * 0.55;
+        const arrowSize = 5 + Math.min(Math.abs(w) * 4, 5);
+        const ang = Math.atan2(dy, dx);
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(mx - Math.cos(ang - 0.4) * arrowSize, my - Math.sin(ang - 0.4) * arrowSize);
+        ctx.lineTo(mx - Math.cos(ang + 0.4) * arrowSize, my - Math.sin(ang + 0.4) * arrowSize);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  // Draw viable range band (faint circle behind units)
+  const cx = W / 2, cy = H / 2;
+  const bandR = Math.min(W, H) * 0.28;
+  ctx.strokeStyle = unstable ? 'rgba(255,102,102,0.08)' : 'rgba(102,221,153,0.06)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 6]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, bandR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Draw units
+  for (let i = 0; i < N; i++) {
+    const u = units[i];
+    const outOfRange = u.value < viableMin || u.value > viableMax;
+    const baseR = 38;
+    const flashR = u.flash * 12;
+    const r = baseR + flashR;
+
+    // Glow
+    const glowCol = outOfRange ? '255,102,102' : '232,165,71';
+    const glowAlpha = 0.15 + u.flash * 0.3;
+    const g = ctx.createRadialGradient(u.x, u.y, 0, u.x, u.y, r * 2.5);
+    g.addColorStop(0, `rgba(${glowCol},${glowAlpha})`);
+    g.addColorStop(1, `rgba(${glowCol},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(u.x - r * 2.5, u.y - r * 2.5, r * 5, r * 5);
+
+    // Unit circle
+    ctx.fillStyle = outOfRange ? 'rgba(255,102,102,0.12)' : 'rgba(232,165,71,0.08)';
+    ctx.strokeStyle = outOfRange ? '#ff6666' : '#e8a547';
+    ctx.lineWidth = 1.5 + u.flash;
+    ctx.beginPath();
+    ctx.arc(u.x, u.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Value bar (vertical, inside the circle)
+    const barH = r * 1.5;
+    const barW = 6;
+    const barX = u.x - barW / 2;
+    const barY = u.y - barH / 2;
+    // Background bar
+    ctx.fillStyle = 'rgba(46,36,64,0.6)';
+    ctx.fillRect(barX, barY, barW, barH);
+    // Viable range indicator
+    const rangeH = barH * (viableMax - viableMin) / 4; // assuming values stay within ~[-2, 2]
+    const rangeY = barY + barH / 2 - rangeH / 2;
+    ctx.fillStyle = 'rgba(102,221,153,0.1)';
+    ctx.fillRect(barX - 2, rangeY, barW + 4, rangeH);
+    // Value indicator
+    const valT = Math.max(-1, Math.min(1, u.value / 2));
+    const indY = u.y - valT * barH / 2;
+    ctx.fillStyle = outOfRange ? '#ff6666' : '#e8a547';
+    ctx.fillRect(barX - 1, indY - 2, barW + 2, 4);
+
+    // Label
+    ctx.font = 'bold 14px Georgia';
+    ctx.fillStyle = outOfRange ? '#ff6666' : '#e8a547';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(u.label, u.x, u.y - r - 14);
+
+    // Value text
+    ctx.font = '10px Georgia';
+    ctx.fillStyle = outOfRange ? 'rgba(255,102,102,0.8)' : 'rgba(240,232,224,0.6)';
+    ctx.fillText(u.value.toFixed(2), u.x, u.y + r + 14);
+  }
+
+  // Pulse ring (reorganization feedback)
+  if (pulseRing) {
+    ctx.strokeStyle = `rgba(232,165,71,${pulseRing.life * 0.4})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(pulseRing.x, pulseRing.y, pulseRing.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Status text (center)
+  ctx.font = '11px Georgia';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (unstable) {
+    ctx.fillStyle = 'rgba(255,102,102,0.5)';
+    ctx.fillText('UNSTABLE — REORGANIZING', cx, cy);
+  } else if (stableTimer > 0 && stableTimer < 2) {
+    ctx.fillStyle = 'rgba(102,221,153,0.5)';
+    ctx.fillText('STABLE', cx, cy);
+  }
+}
+
+// --- Main loop ---
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  step(dt);
+  draw();
+  updateStats();
+  requestAnimationFrame(loop);
+}
+
+function updateStats() {
+  const stateEl = document.getElementById('stateLabel');
+  if (unstable) {
+    stateEl.textContent = 'Unstable';
+    stateEl.className = 's danger';
+  } else {
+    stateEl.textContent = 'Stable';
+    stateEl.className = 's safe';
+  }
+  document.getElementById('reorgCount').textContent = reorgCount;
+  document.getElementById('stableTime').textContent = stableTimer.toFixed(1) + 's';
+}
+
+// --- Interaction ---
+cv.addEventListener('click', (e) => {
+  const rect = cv.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  // Find nearest unit
+  let nearest = -1, nearestD = Infinity;
+  for (let i = 0; i < N; i++) {
+    const d = Math.hypot(units[i].x - mx, units[i].y - my);
+    if (d < 50 && d < nearestD) { nearest = i; nearestD = d; }
+  }
+  if (nearest >= 0) {
+    perturbUnit(nearest, (Math.random() < 0.5 ? -1 : 1) * (1.5 + Math.random()));
+  }
+});
+
+document.getElementById('pokeBtn').addEventListener('click', perturbRandom);
+document.getElementById('shatterBtn').addEventListener('click', shatterAll);
+document.getElementById('reorgBtn').addEventListener('click', () => { reorganize(); unstable = !checkStability(); });
+document.getElementById('resetBtn').addEventListener('click', initSystem);
+
+const speedSlider = document.getElementById('speedSlider');
+const speedVal = document.getElementById('speedVal');
+speedSlider.addEventListener('input', () => {
+  speedMult = parseFloat(speedSlider.value);
+  speedVal.textContent = speedMult.toFixed(1) + '×';
+});
+
+document.getElementById('showWeights').addEventListener('change', (e) => {
+  showWeights = e.target.checked;
+});
+document.getElementById('autoPerturb').addEventListener('change', (e) => {
+  autoPerturb = e.target.checked;
+  lastPerturb = 0;
+});
+
+// --- Init ---
+resize();
+initSystem();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
