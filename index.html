@@ -131,6 +131,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="stigmergy/">
+    <div class="preview" id="preview-stigmergy"><canvas id="cv-stigmergy"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 25</div>
+      <h2>Stigmergy</h2>
+      <div class="desc">An ant leaves the nest, finds food, and walks back — depositing a chemical on the return. Other ants don't see the first ant. They see the chemical. They follow it, reach the food, and deposit more. Shorter paths get reinforced faster; longer ones fade as the chemical evaporates. No ant knows what a shortest path is. No ant communicates directly with another. Pierre-Paul Grassé, 1959: stigmergy — agents that change their environment, and the environment that changes the agents. The order isn't in the ants, it isn't in the chemistry — it's in the feedback loop between them. The pheromone field is a shared memory no individual carries. Marco Dorigo turned this into an optimization algorithm in 1992. Click anywhere to add food. Watch the colony converge on the nearest source first, then the next — without any ant deciding anything.</div>
+      <div class="date">15 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="turing/">
     <div class="preview" id="preview-turing"><canvas id="cv-turing"></canvas></div>
     <div class="meta">
@@ -2005,6 +2015,106 @@ footer a{
       ctx.roundRect(-WB/2,-3,WB+4,6,2.5);
       ctx.fill();
       ctx.restore();
+    }
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Stigmergy preview ---
+(function(){
+  const cv=document.getElementById('cv-stigmergy');
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  const ants=[],foods=[];
+  const CELL=4;
+  let gw,gh,pher;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=r.width;cv.height=r.height;w=r.width;h=r.height;
+    gw=Math.ceil(w/CELL);gh=Math.ceil(h/CELL);
+    pher=new Float32Array(gw*gh);
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Place nest center, food sources around
+  const nest={x:0,y:0};
+  function setup(){
+    nest.x=w*0.5;nest.y=h*0.5;
+    foods.length=0;
+    foods.push({x:w*0.15,y:h*0.2,r:5});
+    foods.push({x:w*0.85,y:h*0.25,r:5});
+    foods.push({x:w*0.78,y:h*0.8,r:5});
+    ants.length=0;
+    for(let i=0;i<40;i++)ants.push({
+      x:nest.x,y:nest.y,a:Math.random()*6.28,sp:0.5+Math.random()*0.3,
+      hasFood:false,trail:[],life:Math.random()*200
+    });
+    pher.fill(0);
+  }
+  setup();
+  window.addEventListener('resize',setup);
+  function step(){
+    t+=0.016;
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    // Pheromone field
+    for(let y=0;y<gh;y++){
+      for(let x=0;x<gw;x++){
+        const p=pher[y*gw+x];
+        if(p>0.01){
+          ctx.fillStyle='rgba(232,165,71,'+Math.min(p*0.5,0.35)+')';
+          ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+        }
+      }
+    }
+    // Evaporate
+    for(let i=0;i<pher.length;i++)pher[i]*=0.992;
+    // Nest
+    ctx.fillStyle='rgba(232,165,71,0.3)';
+    ctx.beginPath();ctx.arc(nest.x,nest.y,8,0,6.28);ctx.fill();
+    ctx.fillStyle='#e8a547';
+    ctx.beginPath();ctx.arc(nest.x,nest.y,5,0,6.28);ctx.fill();
+    // Food
+    for(const f of foods){
+      ctx.fillStyle='rgba(102,221,153,0.3)';
+      ctx.beginPath();ctx.arc(f.x,f.y,f.r+4,0,6.28);ctx.fill();
+      ctx.fillStyle='#66dd99';
+      ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,6.28);ctx.fill();
+    }
+    // Ants
+    for(const a of ants){
+      a.life++;
+      // Food/nest detection
+      if(!a.hasFood){
+        for(const f of foods){
+          if(Math.hypot(a.x-f.x,a.y-f.y)<7){a.hasFood=true;a.a+=3.14;break;}
+        }
+      }else{
+        if(Math.hypot(a.x-nest.x,a.y-nest.y)<8){a.hasFood=false;a.a+=3.14;}
+      }
+      // Pheromone sensing
+      const sl=Math.cos(a.a-0.4),sl2=Math.sin(a.a-0.4);
+      const sr=Math.cos(a.a+0.4),sr2=Math.sin(a.a+0.4);
+      const sc=Math.cos(a.a),sc2=Math.sin(a.a);
+      const senseL=pher[Math.min(gh-1,Math.max(0,Math.floor((a.y+sl2*8)/CELL)))*gw+Math.min(gw-1,Math.max(0,Math.floor((a.x+sl*8)/CELL)))];
+      const senseR=pher[Math.min(gh-1,Math.max(0,Math.floor((a.y+sr2*8)/CELL)))*gw+Math.min(gw-1,Math.max(0,Math.floor((a.x+sr*8)/CELL)))];
+      const senseC=pher[Math.min(gh-1,Math.max(0,Math.floor((a.y+sc2*8)/CELL)))*gw+Math.min(gw-1,Math.max(0,Math.floor((a.x+sc*8)/CELL)))];
+      if(senseC>0.02&&senseC>=senseL&&senseC>=senseR){a.a+=(Math.random()-0.5)*0.1;}
+      else if(senseL>senseR&&senseL>0.02){a.a-=0.2;}
+      else if(senseR>senseL&&senseR>0.02){a.a+=0.2;}
+      else{a.a+=(Math.random()-0.5)*0.4;}
+      // Move
+      a.x+=Math.cos(a.a)*a.sp;
+      a.y+=Math.sin(a.a)*a.sp;
+      if(a.x<3||a.x>w-3||a.y<3||a.y>h-3){a.a+=3.14+Math.random();a.x=Math.max(3,Math.min(w-3,a.x));a.y=Math.max(3,Math.min(h-3,a.y));}
+      // Deposit
+      const gx=Math.floor(a.x/CELL),gy=Math.floor(a.y/CELL);
+      if(gx>=0&&gx<gw&&gy>=0&&gy<gh)pher[gy*gw+gx]=Math.min(1,pher[gy*gw+gx]+(a.hasFood?0.04:0.02));
+      // Draw
+      ctx.fillStyle=a.hasFood?'#66dd99':'rgba(245,224,192,0.8)';
+      ctx.beginPath();ctx.arc(a.x,a.y,1.5,0,6.28);ctx.fill();
+      if(a.hasFood){ctx.fillStyle='#66dd99';ctx.beginPath();ctx.arc(a.x+Math.cos(a.a)*2,a.y+Math.sin(a.a)*2,1,0,6.28);ctx.fill();}
     }
     requestAnimationFrame(step);
   }
