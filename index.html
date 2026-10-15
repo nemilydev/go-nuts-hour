@@ -257,6 +257,16 @@ footer a{
     </div>
   </a>
 
+  <a class="piece" href="forge-dither/">
+    <div class="preview" id="preview-fdither"><canvas id="cv-fdither"></canvas></div>
+    <div class="meta">
+      <div class="tag">Forge · Canvas</div>
+      <h2>Error Diffusion</h2>
+      <div class="desc">Each pixel makes a local choice — which palette color is closest — and hands the leftover error to its neighbors, weighted by the Floyd-Steinberg kernel. Seven-sixteenths right, five-sixteenths down, the rest to the corners. No pixel knows the picture. And yet the global pattern that emerges is more faithful than any global algorithm produces. Watch it run row by row: the error cascades forward, and texture blooms out of arithmetic. Three algorithms to compare, three palettes, five procedural sources — or paint your own and watch it dither.</div>
+      <div class="date">15 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="soft-life/">
     <div class="preview" id="preview-soft"><canvas id="cv-soft"></canvas></div>
     <div class="meta">
@@ -2073,6 +2083,45 @@ footer a{
         }
       }
     }
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Error Diffusion preview ---
+(function(){
+  const cv=document.getElementById('cv-fdither');
+  if(!cv)return;
+  const ctx=cv.getContext('2d');
+  let w,h;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=r.width;cv.height=r.height;w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Animated row-by-row dithering of a moving gradient
+  const CW=96,CH=54;
+  const cell=Math.ceil(Math.max(w/CW,h/CH));
+  const cols=Math.ceil(w/cell),rows=Math.ceil(h/cell);
+  let errRow=null,row=0,t=0;
+  function step(){
+    t+=0.016;
+    if(row>=rows){row=0;}
+    ctx.fillStyle='#120e1a';ctx.fillRect(0,0,w,h);
+    // dither one row per frame of a drifting radial gradient
+    const cx=w*(0.5+0.3*Math.sin(t*0.3)),cy=h*(0.5+0.3*Math.cos(t*0.23));
+    if(errRow===null)errRow=new Float32Array(cols);
+    for(let i=0;i<cols;i++){
+      const px=i*cell,v=(1-Math.hypot(px-cx,row*cell-cy)/(w*0.7))+errRow[i];
+      const on=v>0.5;
+      errRow[i]=(v-(on?1:0))*0.6;
+      if(on){
+        ctx.fillStyle='#e8a547';
+        ctx.fillRect(i*cell,row*cell,cell-1,cell-1);
+      }
+    }
+    row++;
     requestAnimationFrame(step);
   }
   step();
