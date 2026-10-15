@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error Diffusion — The Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+    background:#0a0807;
+    color:#c4a97d;
+    font-family:'Georgia',serif;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:20px;
+}
+.header{text-align:center;margin-bottom:12px;}
+.header h1{font-size:1.4em;font-weight:normal;color:#e8c887;letter-spacing:.04em;}
+.header .sub{color:#8a6f4e;font-size:.85em;font-style:italic;margin-top:4px;}
+canvas{display:block;border:1px solid #2a2218;background:#0d0a08;cursor:crosshair;}
+.wrap{display:flex;gap:2px;margin-bottom:4px;}
+.wrap canvas{border:none;}
+.wrap .panel{position:relative;}
+.wrap .label{
+    position:absolute;top:4px;left:6px;font-size:.65em;color:#8a6f4e;
+    text-transform:uppercase;letter-spacing:.08em;pointer-events:none;
+}
+.controls{
+    display:flex;gap:20px;align-items:center;margin-top:14px;flex-wrap:wrap;justify-content:center;
+}
+.ctl{display:flex;align-items:center;gap:8px;}
+.ctl label{font-size:.8em;color:#8a6f4e;white-space:nowrap;}
+.ctl input[type=range]{accent-color:#e8c887;width:130px;}
+button{background:#110d0a;color:#c4a97d;border:1px solid #2a2218;padding:6px 14px;font-family:inherit;font-size:.8em;cursor:pointer;}
+button:hover{border-color:#e8c887;color:#e8c887;}
+button.active{border-color:#e8c887;color:#e8c887;background:#1a130a;}
+.readout{
+    font-family:'SF Mono',Consolas,monospace;font-size:.8em;color:#e8c887;
+    margin-top:10px;text-align:center;
+}
+.note{max-width:560px;text-align:center;color:#a8916a;font-size:.85em;line-height:1.7;margin-top:14px;}
+.note em{color:#e8c887;font-style:normal;}
+a.back{color:#8a6f4e;font-size:.8em;text-decoration:none;margin-top:16px;}
+a.back:hover{color:#e8c887;}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>Error Diffusion</h1>
+    <div class="sub">each pixel decides alone, pushes its mistake to the next one</div>
+</div>
+<div class="wrap">
+    <div class="panel">
+        <div class="label">source</div>
+        <canvas id="src" width="280" height="280"></canvas>
+    </div>
+    <div class="panel">
+        <div class="label">dithered</div>
+        <canvas id="out" width="280" height="280"></canvas>
+    </div>
+    <div class="panel">
+        <div class="label">error</div>
+        <canvas id="err" width="280" height="280"></canvas>
+    </div>
+</div>
+<div class="controls">
+    <div class="ctl">
+        <label for="colors">palette</label>
+        <input type="range" id="colors" min="2" max="8" step="1" value="4">
+    </div>
+    <div class="ctl">
+        <label for="scheme">scheme</label>
+        <button id="s-amber" class="active">amber</button>
+        <button id="s-bw">B&amp;W</button>
+        <button id="s-ink">ink</button>
+    </div>
+    <div class="ctl">
+        <label for="algo">algorithm</label>
+        <button id="a-floyd" class="active">Floyd-Steinberg</button>
+        <button id="a-ordered">Bayer 4×4</button>
+        <button id="a-none">nearest</button>
+    </div>
+    <button id="regen">new source</button>
+    <button id="play">▶ animate</button>
+</div>
+<div class="readout" id="readout">palette: 4 colors · Floyd-Steinberg · 280×280</div>
+<div class="note">
+Each pixel picks the closest color it can from a tiny palette and <em>wrong</em>. The difference — the quantization error — doesn't vanish. Floyd and Steinberg's idea: push it forward. Seven-sixteenths right, three-sixteenths down-left, five-sixteenths down, one-sixteenth down-right. No pixel knows the image. No pixel knows what color it <em>should</em> be. Each one just corrects its neighbor's mistake, and the cascade of corrections — the <em>propagated error</em> — is what produces the gradients, the soft transitions, the illusion of continuous tone from a handful of colors. The order isn't imposed; it <em>diffuses</em>.
+</div>
+<a class="back" href="/">← the Forge</a>
+<script>
+(function(){
+    const W=280,H=280;
+    const srcCv=document.getElementById('src');
+    const outCv=document.getElementById('out');
+    const errCv=document.getElementById('err');
+    const srcCtx=srcCv.getContext('2d');
+    const outCtx=outCv.getContext('2d');
+    const errCtx=errCv.getContext('2d');
+
+    // Palettes
+    const palettes={
+        amber:[[10,8,5],[60,40,15],[140,95,40],[200,145,60],[235,180,95],[255,215,140],[255,240,200],[255,250,235]],
+        bw:[[0,0,0],[255,255,255],[80,80,80],[170,170,170],[40,40,40],[120,120,120],[210,210,210],[255,255,255]],
+        ink:[[5,8,20],[15,25,55],[30,50,95],[55,80,140],[90,120,180],[140,170,210],[200,215,235],[240,245,255]]
+    };
+
+    let scheme='amber', algo='floyd', nColors=4;
+    let sourceData=null; // Float32 RGB
+    let outData=null;
+    let errData=null;
+    let animRow=0, animating=false;
+    let sources=[0,1,2,3,4];
+    let srcIdx=0;
+
+    // --- Procedural source images ---
+    function genSource(idx){
+        const d=new Float32Array(W*H*3);
+        for(let y=0;y<H;y++){
+            for(let x=0;x<W;x++){
+                let r=0,g=0,b=0;
+                const u=x/W,v=y/H;
+                if(idx===0){
+                    // Radial gradient with soft noise
+                    const dx=u-0.45,dy=v-0.4;
+                    const dist=Math.sqrt(dx*dx+dy*dy);
+                    const t=Math.max(0,1-dist*1.6);
+                    r=255*t; g=200*t*0.8; b=100*t*0.5;
+                    const n=(Math.random()-0.5)*18;
+                    r+=n;g+=n*0.8;b+=n*0.6;
+                }else if(idx===1){
+                    // Interference pattern
+                    const a=Math.sin(u*Math.PI*4)*Math.cos(v*Math.PI*3);
+                    const b2=Math.sin((u+v)*Math.PI*6);
+                    const t=(a+b2)*0.25+0.5;
+                    r=255*t; g=180*t; b=60*t;
+                    const n=(Math.random()-0.5)*10;
+                    r+=n;g+=n;b+=n;
+                }else if(idx===2){
+                    // Diagonal gradient with soft circles
+                    const t=u*0.3+v*0.5;
+                    const cx=u-0.6,cy=v-0.3;
+                    const c=Math.max(0,1-Math.sqrt(cx*cx+cy*cy)*3);
+                    const finalT=Math.min(1,t+c*0.4);
+                    r=235*finalT; g=165*finalT; b=80*finalT;
+                    const n=(Math.random()-0.5)*14;
+                    r+=n;g+=n*0.9;b+=n*0.7;
+                }else if(idx===3){
+                    // Soft clouds via overlapping radial gradients
+                    let val=0;
+                    for(let i=0;i<5;i++){
+                        const ang=i*1.3;
+                        const cx=0.5+Math.cos(ang)*0.3;
+                        const cy=0.5+Math.sin(ang)*0.25;
+                        const dx=u-cx,dy=v-cy;
+                        const d=Math.sqrt(dx*dx+dy*dy);
+                        val+=Math.max(0,1-d*3)*0.3;
+                    }
+                    val=Math.min(1,val);
+                    r=240*val; g=190*val; b=110*val;
+                    const n=(Math.random()-0.5)*16;
+                    r+=n;g+=n*0.85;b+=n*0.7;
+                }else{
+                    // Wavy bands
+                    const wave=Math.sin(v*Math.PI*5+Math.sin(u*Math.PI*3)*2)*0.5+0.5;
+                    const t=wave*u;
+                    r=245*t; g=175*t; b=70*t;
+                    const n=(Math.random()-0.5)*12;
+                    r+=n;g+=n*0.9;b+=n*0.7;
+                }
+                const i=(y*W+x)*3;
+                d[i]=Math.max(0,Math.min(255,r));
+                d[i+1]=Math.max(0,Math.min(255,g));
+                d[i+2]=Math.max(0,Math.min(255,b));
+            }
+        }
+        return d;
+    }
+
+    function drawSource(){
+        const img=srcCtx.createImageData(W,H);
+        for(let i=0;i<W*H*3;i++) img.data[i]=sourceData[i];
+        for(let i=0;i<W*H;i++) img.data[i*4+3]=255;
+        srcCtx.putImageData(img,0,0);
+    }
+
+    function getPalette(){
+        const p=palettes[scheme].slice(0,nColors);
+        return p;
+    }
+
+    function nearestColor(r,g,b,palette){
+        let best=0,bestD=Infinity;
+        for(let i=0;i<palette.length;i++){
+            const dr=r-palette[i][0],dg=g-palette[i][1],db=b-palette[i][2];
+            const d=dr*dr+dg*dg+db*db;
+            if(d<bestD){bestD=d;best=i;}
+        }
+        return palette[best];
+    }
+
+    // Floyd-Steinberg error diffusion
+    function ditherFloyd(palette){
+        const buf=new Float32Array(sourceData);
+        const out=new Uint8ClampedArray(W*H*4);
+        const errMap=new Float32Array(W*H);
+        for(let y=0;y<H;y++){
+            for(let x=0;x<W;x++){
+                const i=(y*W+x)*3;
+                const oldR=buf[i],oldG=buf[i+1],oldB=buf[i+2];
+                const c=nearestColor(oldR,oldG,oldB,palette);
+                const errR=oldR-c[0],errG=oldG-c[1],errB=oldB-c[2];
+                out[(y*W+x)*4]=c[0];
+                out[(y*W+x)*4+1]=c[1];
+                out[(y*W+x)*4+2]=c[2];
+                out[(y*W+x)*4+3]=255;
+                // Error magnitude for visualization
+                errMap[y*W+x]=Math.sqrt(errR*errR+errG*errG+errB*errB);
+                // Distribute error
+                if(x+1<W){
+                    buf[((y)*W+(x+1))*3]+=errR*7/16;
+                    buf[((y)*W+(x+1))*3+1]+=errG*7/16;
+                    buf[((y)*W+(x+1))*3+2]+=errB*7/16;
+                }
+                if(y+1<H){
+                    if(x>0){
+                        buf[((y+1)*W+(x-1))*3]+=errR*3/16;
+                        buf[((y+1)*W+(x-1))*3+1]+=errG*3/16;
+                        buf[((y+1)*W+(x-1))*3+2]+=errB*3/16;
+                    }
+                    buf[((y+1)*W+x)*3]+=errR*5/16;
+                    buf[((y+1)*W+x)*3+1]+=errG*5/16;
+                    buf[((y+1)*W+x)*3+2]+=errB*5/16;
+                    if(x+1<W){
+                        buf[((y+1)*W+(x+1))*3]+=errR*1/16;
+                        buf[((y+1)*W+(x+1))*3+1]+=errG*1/16;
+                        buf[((y+1)*W+(x+1))*3+2]+=errB*1/16;
+                    }
+                }
+            }
+        }
+        return {out,errMap};
+    }
+
+    // Animated Floyd-Steinberg — one row at a time
+    let fsBuf=null,fsOut=null,fsErr=null;
+    function initAnimated(){
+        fsBuf=new Float32Array(sourceData);
+        fsOut=new Uint8ClampedArray(W*H*4);
+        fsErr=new Float32Array(W*H);
+        animRow=0;
+    }
+    function stepAnimated(palette){
+        if(animRow>=H) return false;
+        const y=animRow;
+        for(let x=0;x<W;x++){
+            const i=(y*W+x)*3;
+            const oldR=fsBuf[i],oldG=fsBuf[i+1],oldB=fsBuf[i+2];
+            const c=nearestColor(oldR,oldG,oldB,palette);
+            const errR=oldR-c[0],errG=oldG-c[1],errB=oldB-c[2];
+            fsOut[(y*W+x)*4]=c[0];
+            fsOut[(y*W+x)*4+1]=c[1];
+            fsOut[(y*W+x)*4+2]=c[2];
+            fsOut[(y*W+x)*4+3]=255;
+            fsErr[y*W+x]=Math.sqrt(errR*errR+errG*errG+errB*errB);
+            if(x+1<W){
+                fsBuf[(y*W+(x+1))*3]+=errR*7/16;
+                fsBuf[(y*W+(x+1))*3+1]+=errG*7/16;
+                fsBuf[(y*W+(x+1))*3+2]+=errB*7/16;
+            }
+            if(y+1<H){
+                if(x>0){
+                    fsBuf[((y+1)*W+(x-1))*3]+=errR*3/16;
+                    fsBuf[((y+1)*W+(x-1))*3+1]+=errG*3/16;
+                    fsBuf[((y+1)*W+(x-1))*3+2]+=errB*3/16;
+                }
+                fsBuf[((y+1)*W+x)*3]+=errR*5/16;
+                fsBuf[((y+1)*W+x)*3+1]+=errG*5/16;
+                fsBuf[((y+1)*W+x)*3+2]+=errB*5/16;
+                if(x+1<W){
+                    fsBuf[((y+1)*W+(x+1))*3]+=errR*1/16;
+                    fsBuf[((y+1)*W+(x+1))*3+1]+=errG*1/16;
+                    fsBuf[((y+1)*W+(x+1))*3+2]+=errB*1/16;
+                }
+            }
+        }
+        animRow++;
+        return true;
+    }
+
+    // Bayer 4x4 ordered dithering
+    const bayer4=[
+        [0,8,2,10],[12,4,14,6],
+        [3,11,1,9],[15,7,13,5]
+    ];
+    function ditherOrdered(palette){
+        const out=new Uint8ClampedArray(W*H*4);
+        const errMap=new Float32Array(W*H);
+        for(let y=0;y<H;y++){
+            for(let x=0;x<W;x++){
+                const i=(y*W+x)*3;
+                const r=sourceData[i],g=sourceData[i+1],b=sourceData[i+2];
+                const threshold=bayer4[y%4][x%4]/16*255/(palette.length-1);
+                const adjR=r+threshold-128;
+                const adjG=g+threshold-128;
+                const adjB=b+threshold-128;
+                const c=nearestColor(adjR,adjG,adjB,palette);
+                out[(y*W+x)*4]=c[0];
+                out[(y*W+x)*4+1]=c[1];
+                out[(y*W+x)*4+2]=c[2];
+                out[(y*W+x)*4+3]=255;
+                errMap[y*W+x]=Math.sqrt(
+                    (r-c[0])*(r-c[0])+(g-c[1])*(g-c[1])+(b-c[2])*(b-c[2])
+                );
+            }
+        }
+        return {out,errMap};
+    }
+
+    // Nearest color only (no dithering)
+    function ditherNearest(palette){
+        const out=new Uint8ClampedArray(W*H*4);
+        const errMap=new Float32Array(W*H);
+        for(let y=0;y<H;y++){
+            for(let x=0;x<W;x++){
+                const i=(y*W+x)*3;
+                const c=nearestColor(sourceData[i],sourceData[i+1],sourceData[i+2],palette);
+                out[(y*W+x)*4]=c[0];
+                out[(y*W+x)*4+1]=c[1];
+                out[(y*W+x)*4+2]=c[2];
+                out[(y*W+x)*4+3]=255;
+                errMap[y*W+x]=Math.sqrt(
+                    (sourceData[i]-c[0])*(sourceData[i]-c[0])+
+                    (sourceData[i+1]-c[1])*(sourceData[i+1]-c[1])+
+                    (sourceData[i+2]-c[2])*(sourceData[i+2]-c[2])
+                );
+            }
+        }
+        return {out,errMap};
+    }
+
+    function drawError(errMap){
+        const img=errCtx.createImageData(W,H);
+        let maxErr=1;
+        for(let i=0;i<W*H;i++) if(errMap[i]>maxErr) maxErr=errMap[i];
+        for(let i=0;i<W*H;i++){
+            const e=errMap[i]/maxErr;
+            // Amber heatmap: dark -> warm
+            img.data[i*4]=Math.min(255,e*255*1.2);
+            img.data[i*4+1]=Math.min(255,e*180);
+            img.data[i*4+2]=Math.min(255,e*60);
+            img.data[i*4+3]=255;
+        }
+        errCtx.putImageData(img,0,0);
+    }
+
+    function renderFull(){
+        const palette=getPalette();
+        let result;
+        if(algo==='floyd') result=ditherFloyd(palette);
+        else if(algo==='ordered') result=ditherOrdered(palette);
+        else result=ditherNearest(palette);
+        const img=new ImageData(new Uint8ClampedArray(result.out),W,H);
+        outCtx.putImageData(img,0,0);
+        drawError(result.errMap);
+        updateReadout();
+    }
+
+    function renderAnimated(){
+        const palette=getPalette();
+        let steps=0;
+        const maxSteps=4; // rows per frame
+        while(steps<maxSteps && stepAnimated(palette)) steps++;
+        // Draw partial output
+        const img=new ImageData(new Uint8ClampedArray(fsOut),W,H);
+        outCtx.putImageData(img,0,0);
+        drawError(fsErr);
+        if(animRow>=H){
+            animating=false;
+            document.getElementById('play').textContent='▶ animate';
+            updateReadout();
+        }
+    }
+
+    function updateReadout(){
+        const algoName=algo==='floyd'?'Floyd-Steinberg':algo==='ordered'?'Bayer 4×4':'nearest';
+        document.getElementById('readout').textContent=
+            `palette: ${nColors} colors · ${algoName} · ${W}×${H}`;
+    }
+
+    function regenerate(){
+        srcIdx=(srcIdx+1)%5;
+        sourceData=genSource(srcIdx);
+        drawSource();
+        if(animating){
+            animating=false;
+            document.getElementById('play').textContent='▶ animate';
+        }
+        renderFull();
+    }
+
+    // Init
+    sourceData=genSource(0);
+    drawSource();
+    renderFull();
+
+    // Controls
+    document.getElementById('colors').addEventListener('input',e=>{
+        nColors=parseInt(e.target.value);
+        if(animating){animating=false;document.getElementById('play').textContent='▶ animate';}
+        renderFull();
+    });
+
+    function setScheme(name){
+        scheme=name;
+        ['s-amber','s-bw','s-ink'].forEach(id=>{
+            document.getElementById(id).classList.toggle('active',id==='s-'+name);
+        });
+        if(animating){animating=false;document.getElementById('play').textContent='▶ animate';}
+        renderFull();
+    }
+    document.getElementById('s-amber').addEventListener('click',()=>setScheme('amber'));
+    document.getElementById('s-bw').addEventListener('click',()=>setScheme('bw'));
+    document.getElementById('s-ink').addEventListener('click',()=>setScheme('ink'));
+
+    function setAlgo(name){
+        algo=name;
+        ['a-floyd','a-ordered','a-none'].forEach(id=>{
+            document.getElementById(id).classList.toggle('active',id==='a-'+name);
+        });
+        if(animating){animating=false;document.getElementById('play').textContent='▶ animate';}
+        renderFull();
+    }
+    document.getElementById('a-floyd').addEventListener('click',()=>setAlgo('floyd'));
+    document.getElementById('a-ordered').addEventListener('click',()=>setAlgo('ordered'));
+    document.getElementById('a-none').addEventListener('click',()=>setAlgo('none'));
+
+    document.getElementById('regen').addEventListener('click',regenerate);
+
+    document.getElementById('play').addEventListener('click',()=>{
+        if(animating){
+            animating=false;
+            document.getElementById('play').textContent='▶ animate';
+            renderFull();
+        }else{
+            initAnimated();
+            animating=true;
+            document.getElementById('play').textContent='⏸ stop';
+            function loop(){
+                if(!animating) return;
+                renderAnimated();
+                if(animating) requestAnimationFrame(loop);
+            }
+            loop();
+        }
+    });
+
+    // Click on source to paint (interactive — paint a soft circle)
+    let painting=false;
+    srcCv.addEventListener('mousedown',e=>{painting=true;paint(e);});
+    srcCv.addEventListener('mouseup',()=>{painting=false;renderFull();});
+    srcCv.addEventListener('mouseleave',()=>{painting=false;});
+    srcCv.addEventListener('mousemove',e=>{if(painting)paint(e);});
+
+    function paint(e){
+        const rect=srcCv.getBoundingClientRect();
+        const x=Math.floor((e.clientX-rect.left)/rect.width*W);
+        const y=Math.floor((e.clientY-rect.top)/rect.height*H);
+        const radius=20;
+        for(let dy=-radius;dy<=radius;dy++){
+            for(let dx=-radius;dx<=radius;dx++){
+                const px=x+dx,py=y+dy;
+                if(px<0||px>=W||py<0||py>=H) continue;
+                const d=Math.sqrt(dx*dx+dy*dy);
+                if(d>radius) continue;
+                const falloff=1-d/radius;
+                const i=(py*W+px)*3;
+                // Paint with a warm amber stroke
+                sourceData[i]=Math.min(255,sourceData[i]+falloff*180);
+                sourceData[i+1]=Math.min(255,sourceData[i+1]+falloff*130);
+                sourceData[i+2]=Math.min(255,sourceData[i+2]+falloff*60);
+            }
+        }
+        drawSource();
+        // Don't re-render dither on every mouse move — too slow
+    }
+
+    updateReadout();
+})();
+</script>
+</body>
+</html>
