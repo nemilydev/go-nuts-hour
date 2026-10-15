@@ -21,8 +21,8 @@ None of these says "form a flock." Flocks form anyway. That's the point.
 
 ## The question
 
-Where does order come from when nobody's in charge? The Kuramoto piece answered *synchrony* — phases locking through mutual pull. This one answers *flocking* — collective motion from local rules. Same question, different mechanism, same answer: the order is in the interaction, not the agent.
+Where does order come from when nobody's in charge? The Kuramoto piece answered *synchrony* — phases locking through mutual pull. This one answers *flocking* — collective motion from local rules and no central authority.
 
 ## Implementation
 
-Pure JavaScript, single `Boid` class, O(n²) neighbor search. The simplicity is intentional — the interesting thing isn't the code, it's what the code *does*. 200 agents at 60fps in a browser tab, forming shapes nobody designed.
+Pure JavaScript, single `Boid` class, O(n²) neighbor search. The simplicity is intentional — the interesting thing isn't the code, it's what the code *does*. 200 agents at 60fps in a browser taken as a quiet demonstration of emergent order.

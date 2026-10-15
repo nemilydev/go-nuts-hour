@@ -23,4 +23,4 @@ Click and drag on the canvas to draw — paint cells in Conway, seed chemicals i
 
 ## Throughline
 
-This is the eighth Forge piece, continuing the investigation: where does order come from when nobody's in charge? Kuramoto said "coupling." Boids said "three local rules." Soft Life says "it depends on the rule, but the rule is always local."
+This is the eighth Forge piece, continuing the investigation: where does order come from when nobody's in charge? Kuramoto said "coupling." Boids said "three local rules." Soft Life says "it depends on the medium."

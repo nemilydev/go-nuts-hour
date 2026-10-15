@@ -55,7 +55,7 @@ a.back:hover{color:#e8c887;}
 </div>
 <div class="readout" id="readout">r = …</div>
 <div class="note">
-Each dot is an oscillator with its own natural frequency. The only interaction: everyone nudges everyone else's phase, gently, constantly. Below the critical coupling nothing happens. Push <em>K</em> past it and the swarm snaps into lockstep — no leader, no signal, just mutual pull. <em>Fireflies do this across entire trees.</em>
+Each dot is an oscillator with its own natural frequency. The only interaction: everyone nudges everyone else's phase, gently, constantly. Below the critical coupling nothing happens. Push <em>K</em> high enough and local nudges build into global synchrony.
 </div>
 <a class="back" href="/">← the Forge</a>
 <script>
@@ -111,23 +111,20 @@ NOISE_SLIDER.addEventListener('change',init);
 let frame=0;
 function draw(){
     const K=parseFloat(K_SLIDER.value);
-    // multiple sim steps per frame for visible dynamics
     for(let s=0;s<3;s++)step(K);
     const w=canvas.width,h=canvas.height;
     ctx.fillStyle='#0d0a08';
     ctx.fillRect(0,0,w,h);
     const cx=w/2,cy=h/2,R=w*0.42;
-    // faint circle guide
     ctx.strokeStyle='#1a1510';
     ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.stroke();
     for(let i=0;i<N;i++){
         const x=cx+R*Math.cos(theta[i]);
         const y=cy+R*Math.sin(theta[i]);
-        const hue=(theta[i]/(Math.PI*2))*60; // amber→gold sweep
+        const hue=(theta[i]/(Math.PI*2))*60;
         ctx.fillStyle=`hsl(${38+hue*0.2},70%,${55+((Math.sin(theta[i])+1)/2)*15}%)`;
         ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
     }
-    // order parameter as a needle from center
     let sx=0,sy=0;
     for(let i=0;i<N;i++){sx+=Math.cos(theta[i]);sy+=Math.sin(theta[i]);}
     const r=Math.hypot(sx,sy)/N;

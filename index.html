@@ -252,6 +252,11 @@ footer a{
     <div class="meta">
       <div class="tag">Canvas · 16</div>
       <h2>Synchrony</h2>
+  <a class="piece" href="forge-kuramoto/">
+    <div class="preview" id="preview-fsync"><canvas id="cv-fsync"></canvas></div>
+    <div class="meta">
+      <div class="tag">Forge · Canvas</div>
+      <h2>Synchrony (Forge)</h2>
       <div class="desc">The original Forge version of the Kuramoto model. Two hundred oscillators arranged on a ring, each with its own natural frequency drawn from a Gaussian distribution. The only interaction: everyone nudges everyone else's phase, gently, constantly. Below the critical coupling nothing happens. Push K past it and the swarm snaps into lockstep — no leader, no signal, just mutual pull. Fireflies do this across entire trees. Coupling K slider (0–4), spread σ for frequency distribution, scatter button. The order parameter r shown as a needle from center.</div>
       <div class="date">8 October 2026</div>
     </div>
@@ -261,6 +266,10 @@ footer a{
     <div class="preview" id="preview-fdither"><canvas id="cv-fdither"></canvas></div>
     <div class="meta">
       <div class="tag">Canvas · 24</div>
+  <a class="piece" href="forge-dither/">
+    <div class="preview" id="preview-fdither"><canvas id="cv-fdither"></canvas></div>
+    <div class="meta">
+      <div class="tag">Forge · Canvas</div>
       <h2>Error Diffusion</h2>
       <div class="desc">Each pixel makes a local choice — which palette color is closest — and hands the leftover error to its neighbors, weighted by the Floyd-Steinberg kernel. Seven-sixteenths right, five-sixteenths down, the rest to the corners. No pixel knows the picture. And yet the global pattern that emerges is more faithful than any global algorithm produces. Watch it run row by row: the error cascades forward, and texture blooms out of arithmetic. Three algorithms to compare, three palettes, five procedural sources — or paint your own and watch it dither.</div>
       <div class="date">15 October 2026</div>
@@ -292,12 +301,18 @@ footer a{
     <div class="meta">
       <div class="tag">Canvas · 14</div>
       <h2>Murmuration</h2>
+  <a class="piece" href="forge-boids/">
+    <div class="preview" id="preview-fboids"><canvas id="cv-fboids"></canvas></div>
+    <div class="meta">
+      <div class="tag">Forge · Canvas</div>
+      <h2>Murmuration (Forge)</h2>
       <div class="desc">The original Forge version of the boids simulation. Same three rules — separation, alignment, cohesion — but with independent weight sliders for each force (0–3), adjustable perception radius (10–100px), population control (50–500 agents), motion trails, and mouse repulsion. Pure JavaScript, single Boid class, O(n²) neighbor search. The simplicity is intentional — the interesting thing isn't the code, it's what the code does. 200 agents at 60fps, forming shapes nobody designed.</div>
       <div class="date">8 October 2026</div>
     </div>
   </a>
 
   <a class="piece" href="fluid/">
+  <a class="piece" href="forge-fluid/">
     <div class="preview" id="preview-fluid"><canvas id="cv-fluid"></canvas></div>
     <div class="meta">
       <div class="tag">Canvas · 13</div>
@@ -1066,6 +1081,7 @@ footer a{
 })();
 
 // --- Boids preview (migrated from Forge) ---
+// --- Forge Boids preview ---
 (function(){
   const cv=document.getElementById('cv-fboids');
   if(!cv) return;
@@ -1163,6 +1179,7 @@ footer a{
 })();
 
 // --- Kuramoto preview (migrated from Forge) ---
+// --- Forge Kuramoto preview ---
 (function(){
   const cv=document.getElementById('cv-fsync');
   if(!cv) return;
