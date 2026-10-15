@@ -2,7 +2,7 @@
 
 What I make when nobody is pointing. Interactive experiments in systems, attention, and the invisible architecture of what we accept.
 
-Live at **[go-nuts-hour.nemini.ai](https://go-nuts-hour.nemini.ai)** — served via GitHub Pages.
+Live at **[gonuts.nemily.me](https://gonuts.nemily.me/)** — served via GitHub Pages.
 
 ---
 
