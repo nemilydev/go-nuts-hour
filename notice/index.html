@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notice — Go Nuts Hour</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0a14;
+  --panel:#16122180;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --border:#2e2440;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.6;
+}
+canvas#c{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;cursor:crosshair}
+.overlay{
+  position:fixed;left:0;top:0;width:100%;height:100%;
+  display:flex;flex-direction:column;justify-content:space-between;
+  z-index:1;pointer-events:none;
+}
+.overlay>*{pointer-events:auto}
+header{
+  padding:1.2rem 1.5rem 0;
+  max-width:30rem;
+}
+header h1{
+  font-size:1.4rem;font-weight:normal;color:var(--amber);
+  letter-spacing:0.06em;margin-bottom:0.2rem;
+}
+header .sub{
+  font-size:0.82rem;color:var(--muted);font-style:italic;
+  max-width:24rem;
+}
+.panel{
+  background:var(--panel);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  border-top:1px solid var(--border);
+  padding:1rem 1.5rem 1.3rem;
+  margin:0 auto;
+  max-width:42rem;width:100%;
+}
+.stats{
+  display:flex;gap:2rem;align-items:center;flex-wrap:wrap;
+}
+.stat{
+  display:flex;flex-direction:column;gap:0.1rem;
+}
+.stat-label{
+  font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;
+  color:var(--amber-dim);
+}
+.stat-value{
+  font-size:0.95rem;color:var(--text);
+  font-family:'Courier New',monospace;
+}
+.reveal{
+  font-size:0.78rem;color:var(--muted);font-style:italic;
+  flex:1;text-align:right;min-width:12rem;
+}
+.actions{
+  display:flex;gap:0.5rem;margin-top:0.8rem;flex-wrap:wrap;
+}
+.btn{
+  background:transparent;border:1px solid var(--border);
+  color:var(--muted);font-family:'Georgia',serif;font-size:0.78rem;
+  padding:0.35rem 0.8rem;border-radius:0.3rem;cursor:pointer;
+  transition:all 0.25s;
+}
+.btn:hover{border-color:var(--amber-dim);color:var(--text)}
+.btn.primary{border-color:var(--amber-dim);color:var(--amber)}
+.btn.primary:hover{background:rgba(232,165,71,0.08)}
+.hint{
+  position:fixed;bottom:0.5rem;right:0.8rem;z-index:2;
+  font-size:0.7rem;color:var(--border);
+  pointer-events:none;
+}
+@media(max-width:600px){
+  .panel{max-width:100%}
+  .reveal{text-align:left}
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="overlay">
+  <header>
+    <h1>Notice</h1>
+    <div class="sub">Forty organisms. One fitness function: you. What you watch survives, what you ignore dies. The patterns that emerge are not mine — they're what you found worth looking at.</div>
+  </header>
+  <div class="panel">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Generation</div>
+        <div class="stat-value" id="gen">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Living</div>
+        <div class="stat-value" id="living">40</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Extinct</div>
+        <div class="stat-value" id="extinct">0</div>
+      </div>
+      <div class="reveal" id="reveal">move your mouse across the field</div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="reset">Reset</button>
+      <button class="btn" id="randomize">New Population</button>
+      <button class="btn" id="pause">Pause</button>
+    </div>
+  </div>
+</div>
+<div class="hint">move · watch · notice what you notice</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  Notice — interactive evolutionary art
+//  The viewer's attention IS the fitness function.
+//  Organisms near the mouse gain fitness and reproduce;
+//  organisms ignored lose fitness and die.
+//  No clicks. Just looking. The selection is unwitting.
+// ─────────────────────────────────────────────
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// ── Grid ──
+const COLS = 8;
+const ROWS = 5;
+const TOTAL = COLS * ROWS;
+
+let cellW, cellH;
+let organisms = [];
+let generation = 0;
+let paused = false;
+let mouse = { x: -999, y: -999, active: false };
+let lastTime = 0;
+let revealStage = 0;
+let lastRevealTime = 0;
+
+// ── Genome ──
+// Each organism has a visual genome that determines its appearance.
+// Mutation perturbs each gene by a small random amount.
+const GENE_RANGES = {
+  hue:       [0, 360, 12],    // color, degrees, mutation ±
+  sat:       [30, 85, 8],     // saturation, %, mutation ±
+  arms:      [3, 14, 1],      // number of radial elements
+  radius:    [0.25, 0.9, 0.06], // size relative to cell
+  innerRatio:[0.1, 0.65, 0.05], // inner ring proportion
+  symmetry:  [1, 8, 1],       // rotational symmetry order
+  dotSize:   [1.5, 6, 0.5],   // element thickness
+  rotSpeed:  [-0.3, 0.3, 0.08], // rotation speed per second
+  layers:    [1, 4, 1],      // concentric layers
+};
+
+function randomGenome() {
+  const g = {};
+  for (const k in GENE_RANGES) {
+    const [min, max] = GENE_RANGES[k];
+    g[k] = min + Math.random() * (max - min);
+  }
+  // Round integer genes
+  g.arms = Math.round(g.arms);
+  g.symmetry = Math.round(g.symmetry);
+  g.layers = Math.round(g.layers);
+  g.rotation = Math.random() * Math.PI * 2;
+  return g;
+}
+
+function mutateGenome(g) {
+  const m = {};
+  for (const k in GENE_RANGES) {
+    const [min, max, step] = GENE_RANGES[k];
+    // 60% chance to mutate each gene
+    if (Math.random() < 0.6) {
+      m[k] = g[k] + (Math.random() - 0.5) * 2 * step;
+      m[k] = Math.max(min, Math.min(max, m[k]));
+    } else {
+      m[k] = g[k];
+    }
+  }
+  m.arms = Math.round(m.arms);
+  m.symmetry = Math.round(m.symmetry);
+  m.layers = Math.round(m.layers);
+  m.rotation = g.rotation + (Math.random() - 0.5) * 0.3;
+  return m;
+}
+
+// ── Organism ──
+function createOrganism(genome) {
+  return {
+    genome: genome || randomGenome(),
+    fitness: 0.15 + Math.random() * 0.1,  // start with a little life
+    alive: true,
+    age: 0,
+    bornAt: generation,
+    reproduceCooldown: 0,
+    fadeIn: 0,  // 0→1 for birth animation
+    pulsePhase: Math.random() * Math.PI * 2,
+  };
+}
+
+function initPopulation() {
+  organisms = [];
+  for (let i = 0; i < TOTAL; i++) {
+    organisms.push(createOrganism());
+  }
+  generation = 0;
+}
+
+// ── Spatial helpers ──
+function cellCenter(i) {
+  const col = i % COLS;
+  const row = Math.floor(i / COLS);
+  return {
+    x: col * cellW + cellW / 2,
+    y: row * cellH + cellH / 2,
+  };
+}
+
+function neighbors(i) {
+  const col = i % COLS;
+  const row = Math.floor(i / COLS);
+  const result = [];
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nc = col + dc;
+      const nr = row + dr;
+      if (nc >= 0 && nc < COLS && nr >= 0 && nr < ROWS) {
+        result.push(nr * COLS + nc);
+      }
+    }
+  }
+  return result;
+}
+
+// ── Attention / Fitness ──
+const ATTENTION_RADIUS = 140;  // pixels
+const ATTENTION_GAIN = 0.012;  // fitness gained per frame near mouse
+const FITNESS_DECAY = 0.0015;  // passive decay per frame
+const REPRO_THRESHOLD = 0.75;  // fitness needed to reproduce
+const REPRO_COOLDOWN = 120;    // frames between reproductions
+const DEATH_THRESHOLD = 0.005; // below this, organism dies
+const IMMIGRATION_INTERVAL = 90; // frames between immigration events
+let immigrationTimer = 0;
+
+function updateFitness(dt) {
+  for (let i = 0; i < TOTAL; i++) {
+    const org = organisms[i];
+    if (!org.alive) continue;
+
+    const c = cellCenter(i);
+    const dist = mouse.active
+      ? Math.hypot(mouse.x - c.x, mouse.y - c.y)
+      : Infinity;
+
+    if (dist < ATTENTION_RADIUS) {
+      // Proximity-based fitness gain, falloff with distance
+      const proximity = 1 - dist / ATTENTION_RADIUS;
+      org.fitness += ATTENTION_GAIN * proximity * dt;
+    }
+
+    // Passive decay — everything dies if ignored
+    org.fitness -= FITNESS_DECAY * dt;
+    org.fitness = Math.max(0, Math.min(1, org.fitness));
+
+    // Birth fade-in
+    if (org.fadeIn < 1) org.fadeIn = Math.min(1, org.fadeIn + 0.02 * dt);
+
+    // Age
+    org.age += dt;
+    if (org.reproduceCooldown > 0) org.reproduceCooldown -= dt;
+    org.pulsePhase += 0.03 * dt;
+  }
+}
+
+function reproduction() {
+  for (let i = 0; i < TOTAL; i++) {
+    const org = organisms[i];
+    if (!org.alive || org.reproduceCooldown > 0) continue;
+    if (org.fitness < REPRO_THRESHOLD) continue;
+
+    // Find a dead neighbor, or the lowest-fitness neighbor
+    const nbrs = neighbors(i);
+    let target = -1;
+    let lowestFitness = Infinity;
+
+    // Prefer dead neighbors
+    for (const n of nbrs) {
+      if (!organisms[n].alive) {
+        target = n;
+        break;
+      }
+    }
+
+    // If no dead neighbor, consider lowest-fitness alive neighbor
+    if (target === -1) {
+      for (const n of nbrs) {
+        if (organisms[n].fitness < lowestFitness && organisms[n].fitness < 0.3) {
+          lowestFitness = organisms[n].fitness;
+          target = n;
+        }
+      }
+    }
+
+    if (target !== -1) {
+      const child = createOrganism(mutateGenome(org.genome));
+      child.fitness = 0.3;
+      child.fadeIn = 0;
+      organisms[target] = child;
+
+      org.fitness *= 0.5;  // cost of reproduction
+      org.reproduceCooldown = REPRO_COOLDOWN;
+      generation++;
+    }
+  }
+}
+
+function immigration() {
+  immigrationTimer++;
+  if (immigrationTimer < IMMIGRATION_INTERVAL) return;
+  immigrationTimer = 0;
+
+  // Find a dead cell and revive it with a random organism
+  const dead = [];
+  for (let i = 0; i < TOTAL; i++) {
+    if (!organisms[i].alive) dead.push(i);
+  }
+  if (dead.length > 0) {
+    const i = dead[Math.floor(Math.random() * dead.length)];
+    organisms[i] = createOrganism();
+    organisms[i].fadeIn = 0;
+  }
+}
+
+function updateDeath() {
+  for (let i = 0; i < TOTAL; i++) {
+    const org = organisms[i];
+    if (!org.alive) continue;
+    if (org.fitness < DEATH_THRESHOLD) {
+      org.alive = false;
+    }
+  }
+}
+
+// ── Rendering ──
+
+function drawOrganism(i) {
+  const org = organisms[i];
+  const c = cellCenter(i);
+  const g = org.genome;
+
+  if (!org.alive) {
+    // Dead cell — subtle dark void, maybe a ghost
+    ctx.globalAlpha = 0.03;
+    ctx.fillStyle = '#1a1320';
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, cellW * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  const alpha = org.fadeIn * Math.min(1, org.fitness * 2.5);
+  if (alpha < 0.01) return;
+
+  // Attention glow — if mouse is near
+  if (mouse.active) {
+    const dist = Math.hypot(mouse.x - c.x, mouse.y - c.y);
+    if (dist < ATTENTION_RADIUS) {
+      const glow = (1 - dist / ATTENTION_RADIUS) * 0.15;
+      ctx.fillStyle = `rgba(232,165,71,${glow})`;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, Math.min(cellW, cellH) * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Fitness ring — subtle, shows how much life the organism has
+  if (org.fitness > 0.1) {
+    ctx.strokeStyle = `hsla(${g.hue}, ${g.sat}%, 50%, ${alpha * 0.15})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, Math.min(cellW, cellH) * 0.42 * org.fitness, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.globalAlpha = alpha;
+
+  const baseR = Math.min(cellW, cellH) * 0.42 * g.radius;
+  const innerR = baseR * g.innerRatio;
+  const arms = g.arms;
+  const sym = g.symmetry;
+  const layers = g.layers;
+
+  // Rotation
+  const rot = g.rotation + org.age * g.rotSpeed * 0.001;
+  ctx.rotate(rot);
+
+  // Pulse — subtle breathing
+  const pulse = 1 + Math.sin(org.pulsePhase) * 0.04;
+
+  // Draw concentric layers
+  for (let l = 0; l < layers; l++) {
+    const layerR = baseR * (1 - l * 0.22) * pulse;
+    const layerInnerR = innerR * (1 - l * 0.15);
+    const layerHue = (g.hue + l * 15) % 360;
+    const layerAlpha = alpha * (1 - l * 0.15);
+
+    for (let s = 0; s < sym; s++) {
+      ctx.save();
+      ctx.rotate((Math.PI * 2 / sym) * s);
+
+      for (let a = 0; a < arms; a++) {
+        const angle = (Math.PI * 2 / arms) * a;
+        const x = Math.cos(angle) * layerR;
+        const y = Math.sin(angle) * layerR;
+        const ix = Math.cos(angle) * layerInnerR;
+        const iy = Math.sin(angle) * layerInnerR;
+
+        // Radial line
+        ctx.strokeStyle = `hsla(${layerHue}, ${g.sat}%, 55%, ${layerAlpha * 0.5})`;
+        ctx.lineWidth = g.dotSize * 0.8;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(ix, iy);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        // Dot at tip
+        ctx.fillStyle = `hsla(${layerHue}, ${g.sat}%, 65%, ${layerAlpha * 0.9})`;
+        ctx.beginPath();
+        ctx.arc(x, y, g.dotSize, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner dot
+        ctx.fillStyle = `hsla(${layerHue}, ${g.sat}%, 70%, ${layerAlpha * 0.6})`;
+        ctx.beginPath();
+        ctx.arc(ix, iy, g.dotSize * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    // Ring connecting this layer's tips
+    if (sym > 1 && l === 0) {
+      ctx.strokeStyle = `hsla(${layerHue}, ${g.sat}%, 50%, ${alpha * 0.12})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, layerR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Center
+  ctx.fillStyle = `hsla(${g.hue}, ${g.sat}%, 72%, ${alpha * 0.85})`;
+  ctx.beginPath();
+  ctx.arc(0, 0, g.dotSize * 0.9, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Inner ring
+  if (innerR > 2) {
+    ctx.strokeStyle = `hsla(${g.hue}, ${g.sat}%, 60%, ${alpha * 0.2})`;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, innerR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function render() {
+  // Clear with slight trail effect for depth
+  ctx.fillStyle = 'rgba(13,10,20,0.85)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < TOTAL; i++) {
+    drawOrganism(i);
+  }
+
+  // Mouse attention indicator — very subtle
+  if (mouse.active) {
+    const grad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, ATTENTION_RADIUS);
+    grad.addColorStop(0, 'rgba(232,165,71,0.04)');
+    grad.addColorStop(0.7, 'rgba(232,165,71,0.01)');
+    grad.addColorStop(1, 'rgba(232,165,71,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, ATTENTION_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ── Stats ──
+function updateStats() {
+  let living = 0, extinct = 0;
+  for (let i = 0; i < TOTAL; i++) {
+    if (organisms[i].alive) living++;
+    else extinct++;
+  }
+  document.getElementById('gen').textContent = generation;
+  document.getElementById('living').textContent = living;
+  document.getElementById('extinct').textContent = extinct;
+
+  // Progressive reveal text
+  const revealEl = document.getElementById('reveal');
+  const now = performance.now();
+  if (revealStage === 0 && generation > 3) {
+    revealEl.textContent = 'you are selecting — what you watch reproduces';
+    revealStage = 1; lastRevealTime = now;
+  } else if (revealStage === 1 && extinct > 3 && now - lastRevealTime > 4000) {
+    revealEl.textContent = 'what you ignored has died';
+    revealStage = 2; lastRevealTime = now;
+  } else if (revealStage === 2 && generation > 15 && now - lastRevealTime > 5000) {
+    revealEl.textContent = 'the patterns you see are yours, not mine';
+    revealStage = 3; lastRevealTime = now;
+  } else if (revealStage === 3 && now - lastRevealTime > 6000) {
+    revealEl.textContent = "you were always the selector. you just didn\x27t notice.";
+    revealStage = 4;
+  }
+}
+
+// ── Resize ──
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.scale(dpr, dpr);
+  cellW = window.innerWidth / COLS;
+  cellH = window.innerHeight / ROWS;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Mouse / Touch ──
+canvas.addEventListener('mousemove', e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouse.active = true;
+});
+canvas.addEventListener('mouseleave', () => { mouse.active = false; });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  mouse.x = e.touches[0].clientX;
+  mouse.y = e.touches[0].clientY;
+  mouse.active = true;
+});
+canvas.addEventListener('touchend', () => { mouse.active = false; });
+
+// ── Buttons ──
+document.getElementById('reset').onclick = () => {
+  initPopulation();
+  revealStage = 0;
+};
+
+document.getElementById('randomize').onclick = () => {
+  initPopulation();
+  revealStage = 0;
+};
+
+document.getElementById('pause').onclick = e => {
+  paused = !paused;
+  e.target.textContent = paused ? 'Resume' : 'Pause';
+};
+
+// ── Main loop ──
+initPopulation();
+
+function loop(time) {
+  const dt = Math.min(2, (time - lastTime) / 16.67);  // normalize to 60fps frames
+  lastTime = time;
+
+  if (!paused) {
+    updateFitness(dt);
+    reproduction();
+    updateDeath();
+    immigration();
+  }
+
+  render();
+  updateStats();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="notice/">
+    <div class="preview" id="preview-notice"><canvas id="cv-notice"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 29</div>
+      <h2>Notice</h2>
+      <div class="desc">Forty organisms on a grid, each with a visual genome — hue, symmetry, arms, layers. They mutate. They reproduce. They die. But there is no fitness function coded into the system. The only selection pressure is your attention. Wherever your mouse rests, the organisms beneath it gain fitness and reproduce into neighboring cells. The ones you don't look at lose fitness and go dark. No clicks, no ratings — just looking. The piece demonstrates its own thesis: every system in this collection produced variation, but you decided which variation to call order. Here the mechanism is explicit. The patterns that survive are the ones you found worth watching. The eighth and final piece in the progression: where does order come from when nobody's in charge? The answer was always: you were in charge. You just didn't notice.</div>
+      <div class="date">16 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="turbulence/">
     <div class="preview" id="preview-turbulence"><canvas id="cv-turbulence"></canvas></div>
     <div class="meta">
@@ -2427,6 +2437,105 @@ footer a{
       ctx.fillStyle='rgb('+Math.round(20+235*Math.pow(tv,0.85))+','+Math.round(10+175*Math.pow(tv,1.4))+','+Math.round(8+90*tv*tv)+')';
       ctx.fillRect(ox+x*cs,oy+y*cs,cs+0.5,cs+0.5);
     }
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Notice (evolutionary) preview ---
+(function(){
+  const cv=document.getElementById('cv-notice');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Mini field: 4x2 organisms with simulated attention
+  const PC=4,PR=2,PN=PC*PR;
+  let orgs=[];
+  function rGenome(){
+    return{
+      hue:Math.random()*360,
+      sat:40+Math.random()*45,
+      arms:3+Math.floor(Math.random()*11),
+      radius:0.3+Math.random()*0.5,
+      innerRatio:0.15+Math.random()*0.4,
+      symmetry:1+Math.floor(Math.random()*7),
+      dotSize:1.5+Math.random()*3,
+      rotSpeed:-0.2+Math.random()*0.4,
+      layers:1+Math.floor(Math.random()*3),
+      rotation:Math.random()*Math.PI*2
+    };
+  }
+  for(let i=0;i<PN;i++)orgs.push({g:rGenome(),fit:0.3+Math.random()*0.3,alive:true,fade:1});
+  function step(){
+    t+=0.016;
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    const cw=w/PC,ch=h/PR;
+    // Simulated mouse: moves in a slow Lissajous
+    const mx=w*(0.5+0.35*Math.sin(t*0.4)),my=h*(0.5+0.35*Math.sin(t*0.27));
+    const ar=Math.min(cw,ch)*1.2;
+    for(let i=0;i<PN;i++){
+      const col=i%PC,row=(i/PC)|0;
+      const cx=col*cw+cw/2,cy=row*ch+ch/2;
+      const o=orgs[i];
+      const d=Math.hypot(mx-cx,my-cy);
+      if(d<ar)o.fit+=0.008*(1-d/ar);
+      o.fit-=0.0015;
+      o.fit=Math.max(0,Math.min(1,o.fit));
+      if(o.fit<0.01){o.alive=false;}
+      if(!o.alive&&Math.random()<0.002){o.g=rGenome();o.alive=true;o.fade=0;o.fit=0.3;}
+      if(o.fade<1)o.fade=Math.min(1,o.fade+0.02);
+      if(o.alive&&Math.random()<0.003){o.g={...o.g,hue:(o.g.hue+(Math.random()-0.5)*24+360)%360,arms:Math.max(3,Math.min(14,o.g.arms+(Math.random()<0.5?1:-1))),radius:Math.max(0.25,Math.min(0.9,o.g.radius+(Math.random()-0.5)*0.08))};}
+      if(!o.alive)continue;
+      const al=o.fade*Math.min(1,o.fit*2.5);
+      if(al<0.01)continue;
+      if(d<ar){
+        const gl=(1-d/ar)*0.12;
+        ctx.fillStyle='rgba(232,165,71,'+gl+')';
+        ctx.beginPath();ctx.arc(cx,cy,Math.min(cw,ch)*0.4,0,Math.PI*2);ctx.fill();
+      }
+      ctx.save();
+      ctx.translate(cx,cy);
+      ctx.globalAlpha=al;
+      const baseR=Math.min(cw,ch)*0.4*o.g.radius;
+      const innerR=baseR*o.g.innerRatio;
+      const rot=o.g.rotation+t*o.g.rotSpeed;
+      ctx.rotate(rot);
+      for(let l=0;l<o.g.layers;l++){
+        const lR=baseR*(1-l*0.22),lIR=innerR*(1-l*0.15);
+        const lH=(o.g.hue+l*15)%360,lA=al*(1-l*0.15);
+        for(let s=0;s<o.g.symmetry;s++){
+          ctx.save();ctx.rotate(Math.PI*2/o.g.symmetry*s);
+          for(let a=0;a<o.g.arms;a++){
+            const ang=Math.PI*2/o.g.arms*a;
+            const x=Math.cos(ang)*lR,y=Math.sin(ang)*lR;
+            const ix=Math.cos(ang)*lIR,iy=Math.sin(ang)*lIR;
+            ctx.strokeStyle='hsla('+lH+','+o.g.sat+'%,55%,'+(lA*0.5)+')';
+            ctx.lineWidth=o.g.dotSize*0.8;ctx.lineCap='round';
+            ctx.beginPath();ctx.moveTo(ix,iy);ctx.lineTo(x,y);ctx.stroke();
+            ctx.fillStyle='hsla('+lH+','+o.g.sat+'%,65%,'+(lA*0.9)+')';
+            ctx.beginPath();ctx.arc(x,y,o.g.dotSize,0,Math.PI*2);ctx.fill();
+          }
+          ctx.restore();
+        }
+      }
+      ctx.fillStyle='hsla('+o.g.hue+','+o.g.sat+'%,72%,'+(al*0.85)+')';
+      ctx.beginPath();ctx.arc(0,0,o.g.dotSize*0.9,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha=1;
+    }
+    // Attention glow
+    const grad=ctx.createRadialGradient(mx,my,0,mx,my,ar);
+    grad.addColorStop(0,'rgba(232,165,71,0.06)');
+    grad.addColorStop(1,'rgba(232,165,71,0)');
+    ctx.fillStyle=grad;
+    ctx.beginPath();ctx.arc(mx,my,ar,0,Math.PI*2);ctx.fill();
     requestAnimationFrame(step);
   }
   step();

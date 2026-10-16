@@ -19,6 +19,7 @@ body{
 .header{text-align:center;margin-bottom:12px;}
 .header h1{font-size:1.4em;font-weight:normal;color:#e8c887;letter-spacing:.04em;}
 .header .sub{color:#8a6f4e;font-size:.85em;font-style:italic;margin-top:4px;}
+canvas{display:block;border:1px solid #2a2218;background:#0d0a08;image-rendering:pixelated;image-rendering:crisp-edges;}
 canvas{display:block;border:1px solid #2a2218;background:#0d0a08;}
 .controls{
     display:flex;gap:24px;align-items:center;margin-top:14px;flex-wrap:wrap;justify-content:center;
@@ -70,6 +71,10 @@ const f=x=>R*x*(1-x);
 const epsEl=document.getElementById('eps'),readout=document.getElementById('readout');
 document.getElementById('reset').onclick=scatter;
 
+cv.width=N;cv.height=N;
+function fit(){
+    const s=Math.min(Math.floor((innerWidth-40)/N),Math.floor((innerHeight-260)/N));
+    cv.style.width=N*s+'px';cv.style.height=N*s+'px';
 function fit(){
     const s=Math.min(Math.floor((innerWidth-40)/N),Math.floor((innerHeight-260)/N));
     cv.width=N*s;cv.height=N*s;
