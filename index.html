@@ -147,6 +147,26 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="critical/">
+    <div class="preview" id="preview-critical"><canvas id="cv-critical"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 26</div>
+      <h2>Critical</h2>
+      <div class="desc">A lattice of spins. Each one points up or down, and each one wants to agree with its neighbors. No external field, no central controller — just the energy between adjacent spins and the thermal noise that shakes them. Below a critical temperature T_c, the spins spontaneously organize and the system magnetizes. Above it, noise wins and the lattice is disordered. The transition is sharp, and Lars Onsager solved it exactly in 1944 — T_c = 2/ln(1+√2) ≈ 2.269. Every spin only talks to its four nearest neighbors, yet the whole lattice decides together. Drag the temperature past T_c and watch order appear or vanish. Add an external field and watch the symmetry break. Click to flip spins and watch the neighborhood respond.</div>
+      <div class="date">16 October 2026</div>
+    </div>
+  </a>
+
+  <a class="piece" href="recursion/">
+    <div class="preview" id="preview-recursion"><canvas id="cv-recursion"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 27</div>
+      <h2>Recursion</h2>
+      <div class="desc">Start with a string. Apply a rule: replace every symbol with a new string. Apply it again. After n iterations, the string is exponentially long — but structurally ordered. It encodes a fractal. Aristid Lindenmayer, 1968: a formal grammar for biological growth, originally studying algae. The order here is different from every other piece — it doesn't emerge from interaction, energy minimization, or pheromone trails. It comes from repetition itself. A single rule, applied to its own output, produces infinite complexity from finite information. The fractal is already in the rule; iteration just reveals it. Eight presets: Koch snowflake, dragon curve, Sierpinski triangle, fractal plant, Hilbert curve, arrowhead, binary tree, crystal. Adjust depth, angle, and watch the growth animate.</div>
+      <div class="date">16 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="stigmergy/">
     <div class="preview" id="preview-stigmergy"><canvas id="cv-stigmergy"></canvas></div>
     <div class="meta">
@@ -2241,6 +2261,118 @@ footer a{
     ctx.font='10px Georgia';
     ctx.fillText('raw',6,h-6);
     ctx.fillText('A-weighted',w-56,h-6);
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Recursion (L-systems) preview ---
+(function(){
+  const cv=document.getElementById('cv-recursion');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Draw a growing Koch snowflake
+  const axiom='F++F++F';
+  const rule={F:'F-F++F-F'};
+  function generate(iter){
+    let s=axiom;
+    for(let i=0;i<iter;i++){let n='';for(const c of s){n+=(rule[c]!==undefined?rule[c]:c);}s=n;}
+    return s;
+  }
+  function parse(str,ang){
+    const segs=[];let x=0,y=0,dir=0;const r=ang*Math.PI/180;
+    for(const c of str){
+      if(c==='F'){const nx=x+Math.cos(dir),ny=y+Math.sin(dir);segs.push([x,y,nx,ny]);x=nx;y=ny;}
+      else if(c==='+')dir+=r;
+      else if(c==='-')dir-=r;
+    }
+    return segs;
+  }
+  let segs=parse(generate(4),60);
+  // Bounds
+  let bx=Infinity,by=Infinity,bX=-Infinity,bY=-Infinity;
+  for(const s of segs){bx=Math.min(bx,s[0],s[2]);by=Math.min(by,s[1],s[3]);bX=Math.max(bX,s[0],s[2]);bY=Math.max(bY,s[1],s[3]);}
+  const bw=bX-bx||1,bh=bY-by||1;
+  let progress=0;
+  function step(){
+    t+=0.016;
+    progress+=0.004;
+    if(progress>1.2)progress=0;
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    const pad=8;
+    const sc=Math.min((w-pad*2)/bw,(h-pad*2)/bh);
+    const ox=(w-bw*sc)/2-bx*sc;
+    const oy=(h-bh*sc)/2-by*sc;
+    const vis=Math.floor(segs.length*Math.min(progress,1));
+    ctx.strokeStyle='rgba(232,165,71,0.8)';
+    ctx.lineWidth=0.8;
+    ctx.beginPath();
+    for(let i=0;i<vis;i++){
+      const s=segs[i];
+      ctx.moveTo(s[0]*sc+ox,s[1]*sc+oy);
+      ctx.lineTo(s[2]*sc+ox,s[3]*sc+oy);
+    }
+    ctx.stroke();
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Critical (Ising model) preview ---
+(function(){
+  const cv=document.getElementById('cv-critical');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Mini Ising model: 24×16 grid, Metropolis at cycling temperature
+  const GL=24,GH=16,GN=GL*GH;
+  let spins=new Int8Array(GN);
+  for(let i=0;i<GN;i++)spins[i]=Math.random()<0.5?1:-1;
+  // Temperature cycles between ordered and disordered
+  function getT(){return 1.5+1.5*(0.5+0.5*Math.sin(t*0.012));}
+  function metropolis(){
+    const T=getT();
+    for(let s=0;s<GN;s++){
+      const i=(Math.random()*GN)|0;
+      const x=i%GL,y=(i/GL)|0;
+      const spin=spins[i];
+      const nb=spins[y*GL+((x-1+GL)%GL)]+spins[y*GL+((x+1)%GL)]
+              +spins[((y-1+GH)%GH)*GL+x]+spins[((y+1)%GH)*GL+x];
+      const dE=2*spin*nb;
+      if(dE<=0||Math.random()<Math.exp(-dE/T))spins[i]=-spin;
+    }
+  }
+  function step(){
+    t+=0.016;
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    // Run 3 sweeps per frame
+    for(let s=0;s<3;s++)metropolis();
+    const cs=Math.min(w/GL,h/GH);
+    const ox=(w-cs*GL)/2,oy=(h-cs*GH)/2;
+    for(let y=0;y<GH;y++)for(let x=0;x<GL;x++){
+      const sp=spins[y*GL+x];
+      if(sp===1){
+        ctx.fillStyle='rgba(232,165,71,0.85)';
+      }else{
+        ctx.fillStyle='rgba(58,40,88,0.9)';
+      }
+      ctx.fillRect(ox+x*cs,oy+y*cs,cs+0.5,cs+0.5);
+    }
     requestAnimationFrame(step);
   }
   step();
