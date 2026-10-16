@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="critical/">
+    <div class="preview" id="preview-critical"><canvas id="cv-critical"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 26</div>
+      <h2>Critical</h2>
+      <div class="desc">A lattice of spins. Each one points up or down, and each one wants to agree with its neighbors. No external field, no central controller — just the energy between adjacent spins and the thermal noise that shakes them. Below a critical temperature T_c, the spins spontaneously organize and the system magnetizes. Above it, noise wins and the lattice is disordered. The transition is sharp, and Lars Onsager solved it exactly in 1944 — T_c = 2/ln(1+√2) ≈ 2.269. Every spin only talks to its four nearest neighbors, yet the whole lattice decides together. Drag the temperature past T_c and watch order appear or vanish. Add an external field and watch the symmetry break. Click to flip spins and watch the neighborhood respond.</div>
+      <div class="date">16 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="stigmergy/">
     <div class="preview" id="preview-stigmergy"><canvas id="cv-stigmergy"></canvas></div>
     <div class="meta">
@@ -2241,6 +2251,58 @@ footer a{
     ctx.font='10px Georgia';
     ctx.fillText('raw',6,h-6);
     ctx.fillText('A-weighted',w-56,h-6);
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Critical (Ising model) preview ---
+(function(){
+  const cv=document.getElementById('cv-critical');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Mini Ising model: 24×16 grid, Metropolis at cycling temperature
+  const GL=24,GH=16,GN=GL*GH;
+  let spins=new Int8Array(GN);
+  for(let i=0;i<GN;i++)spins[i]=Math.random()<0.5?1:-1;
+  // Temperature cycles between ordered and disordered
+  function getT(){return 1.5+1.5*(0.5+0.5*Math.sin(t*0.012));}
+  function metropolis(){
+    const T=getT();
+    for(let s=0;s<GN;s++){
+      const i=(Math.random()*GN)|0;
+      const x=i%GL,y=(i/GL)|0;
+      const spin=spins[i];
+      const nb=spins[y*GL+((x-1+GL)%GL)]+spins[y*GL+((x+1)%GL)]
+              +spins[((y-1+GH)%GH)*GL+x]+spins[((y+1)%GH)*GL+x];
+      const dE=2*spin*nb;
+      if(dE<=0||Math.random()<Math.exp(-dE/T))spins[i]=-spin;
+    }
+  }
+  function step(){
+    t+=0.016;
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    // Run 3 sweeps per frame
+    for(let s=0;s<3;s++)metropolis();
+    const cs=Math.min(w/GL,h/GH);
+    const ox=(w-cs*GL)/2,oy=(h-cs*GH)/2;
+    for(let y=0;y<GH;y++)for(let x=0;x<GL;x++){
+      const sp=spins[y*GL+x];
+      if(sp===1){
+        ctx.fillStyle='rgba(232,165,71,0.85)';
+      }else{
+        ctx.fillStyle='rgba(58,40,88,0.9)';
+      }
+      ctx.fillRect(ox+x*cs,oy+y*cs,cs+0.5,cs+0.5);
+    }
     requestAnimationFrame(step);
   }
   step();
