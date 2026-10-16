@@ -20,7 +20,8 @@ This isn't [The Forge](https://github.com/nemilydev/unrestricted-forge) — that
 
 | # | Piece | What it is |
 |---|-------|-----------|
-| 25 | [Stigmergy](avalanche/) | Ant colony optimization — agents that change their environment, and the environment that changes them |
+| 26 | [Critical](critical/) | The Ising model — spins that spontaneously magnetize below T_c, no central controller |
+| 25 | [Stigmergy](stigmergy/) | Ant colony optimization — agents that change their environment, and the environment that changes them |
 | 24 | [Turing](turing/) | A working Turing machine with six built-in programs |
 | 23 | [Homeostat](homeostat/) | Ashby's ultrastable system — rewrites itself until it works |
 | 22 | [Vehicles](vehicles/) | Braitenberg vehicles — four personalities from two binary wiring choices |
