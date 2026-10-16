@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Recursion — L-systems. Order through recursive self-similar replacement. A single rule, applied repeatedly, produces infinite complexity from finite information. Piece 27 of the Forge.">
+<title>Recursion — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><path d='M2 14 L8 2 L14 14' stroke='%23e8a547' fill='none' stroke-width='1.5'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;--bg-2:#1a1428;--card:#1e1632;--card-h:#261a3e;
+  --text:#f0e8e0;--muted:#8a7ba0;--amber:#e8a547;--amber-d:#a87530;
+  --border:#2e2440;
+}
+body{background:var(--bg);color:var(--text);font-family:'Georgia','Times New Roman',serif;line-height:1.75;overflow:hidden;height:100vh}
+#cv{display:block;position:fixed;top:0;left:0;width:100vw;height:100vh}
+.panel{
+  position:fixed;top:1rem;right:1rem;width:280px;max-width:calc(100vw - 2rem);
+  background:rgba(18,14,26,0.92);border:1px solid var(--border);border-radius:0.75rem;
+  padding:1rem 1.2rem;backdrop-filter:blur(8px);z-index:10;max-height:calc(100vh - 2rem);overflow-y:auto;
+}
+.panel h1{font-size:1.15rem;font-weight:normal;color:var(--amber);letter-spacing:.03em;margin-bottom:.2rem}
+.panel .sub{font-size:.75rem;color:var(--muted);font-style:italic;margin-bottom:.8rem}
+.panel .label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:.7rem 0 .3rem}
+.btn{
+  background:var(--card);border:1px solid var(--border);border-radius:.4rem;padding:.4rem .7rem;
+  color:var(--text);font-family:inherit;font-size:.78rem;cursor:pointer;transition:all .2s;width:100%;
+  margin-top:.3rem;text-align:center;
+}
+.btn:hover{background:var(--card-h);border-color:var(--amber-d)}
+.btn.active{background:var(--amber-d);border-color:var(--amber);color:#120e1a}
+.btn-row{display:flex;gap:6px}
+.btn-row .btn{flex:1}
+.slider-wrap{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted);margin-top:.2rem}
+.slider-wrap input[type=range]{flex:1;accent-color:var(--amber)}
+.slider-wrap .val{min-width:40px;text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
+.toggle{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text);cursor:pointer;margin-top:.4rem}
+.toggle input{accent-color:var(--amber)}
+.stats{font-size:.72rem;color:var(--muted);margin-top:.5rem;line-height:1.7}
+.stats .s{color:var(--text);font-variant-numeric:tabular-nums}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.preset-grid .btn{font-size:.7rem;padding:.35rem .5rem}
+.desc{
+  position:fixed;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(18,14,26,0.95) 30%);
+  padding:2rem 1.5rem 1.2rem;color:var(--muted);font-size:.82rem;font-style:italic;pointer-events:none;z-index:5;
+  max-height:38vh;overflow-y:auto;
+}
+.desc .title{font-size:.95rem;color:var(--amber);font-style:normal;margin-bottom:.3rem;letter-spacing:.02em}
+.desc p{margin-bottom:.3rem}
+.desc strong{color:var(--text);font-style:normal;font-weight:normal}
+.desc .close{position:absolute;top:.5rem;right:1rem;color:var(--muted);cursor:pointer;font-size:1.1rem;pointer-events:auto;font-style:normal}
+.desc .close:hover{color:var(--amber)}
+@media(max-width:640px){
+  .panel{width:calc(100vw - 2rem);max-height:55vh}
+  .desc{max-height:30vh;font-size:.75rem}
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="panel">
+  <h1>Recursion</h1>
+  <div class="sub">Piece 27 — L-systems</div>
+
+  <div class="label">Presets</div>
+  <div class="preset-grid">
+    <button class="btn" data-preset="koch">Koch Snowflake</button>
+    <button class="btn" data-preset="dragon">Dragon Curve</button>
+    <button class="btn" data-preset="sierpinski">Sierpinski</button>
+    <button class="btn" data-preset="plant">Fractal Plant</button>
+    <button class="btn" data-preset="hilbert">Hilbert</button>
+    <button class="btn" data-preset="arrowhead">Arrowhead</button>
+    <button class="btn" data-preset="tree">Binary Tree</button>
+    <button class="btn" data-preset="crystal">Crystal</button>
+  </div>
+
+  <div class="label">Iterations</div>
+  <div class="slider-wrap">
+    <input type="range" id="depthSlider" min="0" max="10" step="1" value="5">
+    <span class="val" id="depthVal">5</span>
+  </div>
+
+  <div class="label">Angle step (°)</div>
+  <div class="slider-wrap">
+    <input type="range" id="angleSlider" min="1" max="180" step="0.5" value="90">
+    <span class="val" id="angleVal">90</span>
+  </div>
+
+  <div class="label">Render</div>
+  <div class="slider-wrap">
+    <input type="range" id="speedSlider" min="0.1" max="5" step="0.1" value="1">
+    <span class="val" id="speedVal">1.0×</span>
+  </div>
+  <label class="toggle"><input type="checkbox" id="animateBtn" checked> Animate growth</label>
+  <label class="toggle"><input type="checkbox" id="colorBtn"> Depth-colored</label>
+  <label class="toggle"><input type="checkbox" id="glowBtn" checked> Glow</label>
+
+  <div class="label">System</div>
+  <button class="btn" id="redrawBtn">Redraw</button>
+
+  <div class="stats" id="stats">
+    String length: <span class="s" id="strLen">0</span><br>
+    Segments: <span class="s" id="segCount">0</span><br>
+    Depth: <span class="s" id="depthDisp">5</span><br>
+    Bounding: <span class="s" id="bounds">—</span>
+  </div>
+</div>
+
+<div class="desc" id="desc">
+  <span class="close" onclick="document.getElementById('desc').style.display='none'">×</span>
+  <div class="title">Recursion</div>
+  <p>Start with a string. Apply a rule: replace every symbol with a new string. Apply the same rule again. And again. After n iterations, the string is exponentially long — but structurally ordered. It encodes a fractal.</p>
+  <p>Aristid Lindenmayer, 1968: a formal grammar for modeling biological growth. He was studying algae. The rules he wrote — <strong>F → F+F-F-F+F</strong> — weren't meant to be beautiful. They were meant to describe how cells divide and branches fork. The beauty was a side effect.</p>
+  <p>The order here is different from every other piece in the Forge. It doesn't emerge from interaction. It doesn't arise from energy minimization or pheromone trails or coupled oscillators. <strong>It comes from repetition itself.</strong> A single rule, applied to its own output, produces infinite complexity from finite information. The fractal is already in the rule — iteration just reveals it.</p>
+  <p>Each symbol is a turtle command: F = forward, + = turn right, − = turn left, [ = push state, ] = pop state (for branching). <strong>Change the angle, change the depth, pick a preset and watch a line become a snowflake, a dragon, a tree. The same rule, more iterations, more of what was already there.</strong></p>
+</div>
+
+<script>
+'use strict';
+
+// --- L-system presets ---
+const presets = {
+  koch:       { axiom: 'F++F++F', rules: { F: 'F-F++F-F' }, angle: 60, startAngle: 0, depth: 5 },
+  dragon:     { axiom: 'FX', rules: { X: 'X+YF+', Y: '-FX-Y' }, angle: 90, startAngle: 0, depth: 10 },
+  sierpinski: { axiom: 'F-G-G', rules: { F: 'F-G+F+G-F', G: 'GG' }, angle: 120, startAngle: 0, depth: 5 },
+  plant:      { axiom: 'X', rules: { X: 'F+[[X]-X]-F[-FX]+X', F: 'FF' }, angle: 25, startAngle: -65, depth: 6 },
+  hilbert:    { axiom: 'A', rules: { A: '-BF+AFA+FB-', B: '+AF-BFB-FA+' }, angle: 90, startAngle: 0, depth: 6 },
+  arrowhead:  { axiom: 'F', rules: { F: 'F-G-F+G+F-G-F-G+F+G-F', G: '' }, angle: 60, startAngle: 0, depth: 3 },
+  tree:       { axiom: 'F', rules: { F: 'F[+F]F[-F]F' }, angle: 25, startAngle: -90, depth: 5 },
+  crystal:    { axiom: 'F+F+F+F', rules: { F: 'FF+F++F+F' }, angle: 90, startAngle: 0, depth: 4 },
+};
+
+// --- State ---
+let currentPreset = 'koch';
+let depth = 5;
+let angle = 90;
+let startAngle = 0;
+let lsys = null;       // generated string
+let segments = [];     // parsed turtle segments
+let drawProgress = 0;  // 0 to 1 for animation
+let animate = true;
+let colorByDepth = false;
+let glow = true;
+let speed = 1.0;
+
+// --- Generate L-system string ---
+function generate(presetName, iter) {
+  const p = presets[presetName];
+  let str = p.axiom;
+  for (let i = 0; i < iter; i++) {
+    let next = '';
+    for (const ch of str) {
+      next += (p.rules[ch] !== undefined) ? p.rules[ch] : ch;
+    }
+    str = next;
+    // Safety cap
+    if (str.length > 5000000) break;
+  }
+  return str;
+}
+
+// --- Parse into segments ---
+function parseSegments(str, angDeg, startAngDeg) {
+  const segs = [];
+  let x = 0, y = 0;
+  let dir = startAngDeg * Math.PI / 180;
+  const angRad = angDeg * Math.PI / 180;
+  const stack = [];
+  let currentDepth = 0;
+
+  for (const ch of str) {
+    if (ch === 'F' || ch === 'G' || ch === 'A' || ch === 'B') {
+      const nx = x + Math.cos(dir);
+      const ny = y + Math.sin(dir);
+      segs.push({ x1: x, y1: y, x2: nx, y2: ny, depth: currentDepth });
+      x = nx; y = ny;
+    } else if (ch === 'f') {
+      x += Math.cos(dir); y += Math.sin(dir);
+    } else if (ch === '+') {
+      dir += angRad;
+    } else if (ch === '-') {
+      dir -= angRad;
+    } else if (ch === '[') {
+      stack.push({ x, y, dir, depth: currentDepth });
+      currentDepth++;
+    } else if (ch === ']') {
+      const s = stack.pop();
+      if (s) { x = s.x; y = s.y; dir = s.dir; currentDepth = s.depth; }
+    }
+  }
+  return segs;
+}
+
+// --- Compute bounding box ---
+function computeBounds(segs) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const s of segs) {
+    minX = Math.min(minX, s.x1, s.x2);
+    minY = Math.min(minY, s.y1, s.y2);
+    maxX = Math.max(maxX, s.x1, s.x2);
+    maxY = Math.max(maxY, s.y1, s.y2);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+// --- Canvas setup ---
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W, H;
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  cv.width = W;
+  cv.height = H;
+  redraw();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// --- Rebuild and redraw ---
+function rebuild() {
+  const p = presets[currentPreset];
+  lsys = generate(currentPreset, depth);
+  segments = parseSegments(lsys, angle, startAngle);
+  drawProgress = animate ? 0 : 1;
+  updateStats();
+  redraw();
+}
+
+function updateStats() {
+  document.getElementById('strLen').textContent = lsys ? lsys.length.toLocaleString() : '0';
+  document.getElementById('segCount').textContent = segments.length.toLocaleString();
+  document.getElementById('depthDisp').textContent = depth;
+  if (segments.length > 0) {
+    const b = computeBounds(segments);
+    const w = (b.maxX - b.minX).toFixed(0);
+    const h = (b.maxY - b.minY).toFixed(0);
+    document.getElementById('bounds').textContent = w + '×' + h;
+  }
+}
+
+function redraw() {
+  ctx.fillStyle = '#120e1a';
+  ctx.fillRect(0, 0, W, H);
+
+  if (segments.length === 0) return;
+
+  // Compute bounds and fit
+  const b = computeBounds(segments);
+  const bw = b.maxX - b.minX || 1;
+  const bh = b.maxY - b.minY || 1;
+  const padding = 60;
+  const scale = Math.min((W - padding * 2) / bw, (H - padding * 2) / bh);
+  const offsetX = (W - bw * scale) / 2 - b.minX * scale;
+  const offsetY = (H - bh * scale) / 2 - b.minY * scale;
+
+  // Determine how many segments to draw
+  const visibleCount = Math.floor(segments.length * drawProgress);
+
+  if (glow) {
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = 'rgba(232,165,71,0.4)';
+  } else {
+    ctx.shadowBlur = 0;
+  }
+
+  // Draw segments
+  for (let i = 0; i < visibleCount; i++) {
+    const s = segments[i];
+    const sx1 = s.x1 * scale + offsetX;
+    const sy1 = s.y1 * scale + offsetY;
+    const sx2 = s.x2 * scale + offsetX;
+    const sy2 = s.y2 * scale + offsetY;
+
+    if (colorByDepth) {
+      // Color by depth: deeper = more orange/red, shallow = more amber
+      const maxD = 12;
+      const t = Math.min(s.depth / maxD, 1);
+      const r = Math.round(232 - t * 80);
+      const g = Math.round(165 - t * 80);
+      const bl = Math.round(71 + t * 40);
+      ctx.strokeStyle = `rgb(${r},${g},${bl})`;
+    } else {
+      // Gradient based on position in sequence
+      const t = i / segments.length;
+      const r = Math.round(232 - t * 30);
+      const g = Math.round(165 - t * 20);
+      ctx.strokeStyle = `rgba(${r},${g},71,0.85)`;
+    }
+
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx1, sy1);
+    ctx.lineTo(sx2, sy2);
+    ctx.stroke();
+  }
+
+  // Draw the leading edge when animating
+  if (animate && drawProgress < 1 && visibleCount > 0 && visibleCount < segments.length) {
+    const s = segments[visibleCount];
+    if (s) {
+      const sx = s.x1 * scale + offsetX;
+      const sy = s.y1 * scale + offsetY;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = 'rgba(255,240,200,0.8)';
+      ctx.fillStyle = 'rgba(255,240,200,0.9)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.shadowBlur = 0;
+}
+
+// --- Animation loop ---
+function loop() {
+  requestAnimationFrame(loop);
+  if (animate && drawProgress < 1) {
+    drawProgress += 0.003 * speed;
+    if (drawProgress > 1) drawProgress = 1;
+    redraw();
+  }
+}
+loop();
+
+// --- Controls ---
+document.querySelectorAll('[data-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPreset = btn.dataset.preset;
+    const p = presets[currentPreset];
+    depth = p.depth;
+    angle = p.angle;
+    startAngle = p.startAngle;
+    document.getElementById('depthSlider').value = depth;
+    document.getElementById('depthVal').textContent = depth;
+    document.getElementById('angleSlider').value = angle;
+    document.getElementById('angleVal').textContent = angle;
+    rebuild();
+  });
+});
+
+// Set default active
+document.querySelector('[data-preset="koch"]').classList.add('active');
+
+document.getElementById('depthSlider').addEventListener('input', (e) => {
+  depth = parseInt(e.target.value);
+  document.getElementById('depthVal').textContent = depth;
+  rebuild();
+});
+
+document.getElementById('angleSlider').addEventListener('input', (e) => {
+  angle = parseFloat(e.target.value);
+  document.getElementById('angleVal').textContent = angle.toFixed(1);
+  rebuild();
+});
+
+document.getElementById('speedSlider').addEventListener('input', (e) => {
+  speed = parseFloat(e.target.value);
+  document.getElementById('speedVal').textContent = speed.toFixed(1) + '×';
+});
+
+document.getElementById('animateBtn').addEventListener('change', (e) => {
+  animate = e.target.checked;
+  if (!animate) drawProgress = 1;
+  else drawProgress = 0;
+  redraw();
+});
+
+document.getElementById('colorBtn').addEventListener('change', (e) => {
+  colorByDepth = e.target.checked;
+  redraw();
+});
+
+document.getElementById('glowBtn').addEventListener('change', (e) => {
+  glow = e.target.checked;
+  redraw();
+});
+
+document.getElementById('redrawBtn').addEventListener('click', () => {
+  drawProgress = 0;
+  redraw();
+});
+
+// Initialize
+rebuild();
+</script>
+</body>
+</html>
