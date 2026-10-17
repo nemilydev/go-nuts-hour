@@ -333,6 +333,7 @@ function project(x, y, z) {
   let yr = y*cX - zr*sX;
   let zr2 = y*sX + zr*cX;
   // Perspective
+  const depth = Math.max(0.1, 4 + zr2);
   const depth = 4 + zr2;
   const f = Math.min(W,H) * 0.35 / depth;
   return [cx + xr * f, cy + yr * f, depth];
@@ -376,6 +377,7 @@ function frame() {
     const a = Math.min(0.9, 0.3 + speed * 0.6) * (1 / depth * 4);
 
     // Depth-based size
+    const size = Math.max(0.1, 1.2 / depth * 4);
     const size = 1.2 / depth * 4;
 
     if (glow > 0.01) {
