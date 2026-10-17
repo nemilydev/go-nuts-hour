@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="strange/">
+    <div class="preview" id="preview-strange"><canvas id="cv-strange"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 30</div>
+      <h2>Strange</h2>
+      <div class="desc">Every trajectory is deterministic — given the same position and the same equations, the next step is exactly determined. And yet the path is unpredictable: the slightest difference in starting point sends two particles to opposite wings. Edward Lorenz found this in 1963 while modeling weather. The system never repeats, never settles, but it doesn't fly apart either. It traces a shape — a strange attractor — a structure that was always there, hidden in the equations, invisible until you let them run. The order isn't imposed on the chaos. It IS the chaos. Five attractors: Lorenz, Rössler, Aizawa, Thomas, Halvorsen. Each one a different geometry of deterministic unpredictability. Thousands of particles trace the structure that chaos itself draws — never the same path twice, always the same shape.</div>
+      <div class="date">17 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="notice/">
     <div class="preview" id="preview-notice"><canvas id="cv-notice"></canvas></div>
     <div class="meta">
@@ -2436,6 +2446,64 @@ footer a{
       const tv=Math.min(1,Math.max(0,a[y*GL+x]));
       ctx.fillStyle='rgb('+Math.round(20+235*Math.pow(tv,0.85))+','+Math.round(10+175*Math.pow(tv,1.4))+','+Math.round(8+90*tv*tv)+')';
       ctx.fillRect(ox+x*cs,oy+y*cs,cs+0.5,cs+0.5);
+    }
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Strange (attractor) preview ---
+(function(){
+  const cv=document.getElementById('cv-strange');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Mini Lorenz attractor with particles
+  const N=400;
+  let pts=[];
+  for(let i=0;i<N;i++){
+    pts.push({x:0.1+Math.random()*0.2-0.1,y:Math.random()*0.2-0.1,z:Math.random()*0.2-0.1,px:0,py:0,has:false});
+  }
+  const sigma=10,rho=28,beta=2.667;
+  const dt=0.006;
+  let rotY=0.6;
+  function step(){
+    t+=0.016;
+    ctx.fillStyle='rgba(18,14,26,0.05)';
+    ctx.fillRect(0,0,w,h);
+    rotY+=0.004;
+    const cx2=w/2,cy2=h/2;
+    const sc=Math.min(w,h)*0.012;
+    for(let i=0;i<N;i++){
+      const p=pts[i];
+      // RK4 Lorenz
+      const x=p.x,y=p.y,z=p.z;
+      const k1x=sigma*(y-x),k1y=x*(rho-z)-y,k1z=x*y-beta*z;
+      const k2x=sigma*((y+k1y*dt/2)-(x+k1x*dt/2)),k2y=(x+k1x*dt/2)*(rho-(z+k1z*dt/2))-(y+k1y*dt/2),k2z=(x+k1x*dt/2)*(y+k1y*dt/2)-beta*(z+k1z*dt/2);
+      const k3x=sigma*((y+k2y*dt/2)-(x+k2x*dt/2)),k3y=(x+k2x*dt/2)*(rho-(z+k2z*dt/2))-(y+k2y*dt/2),k3z=(x+k2x*dt/2)*(y+k2y*dt/2)-beta*(z+k2z*dt/2);
+      const k4x=sigma*((y+k3y*dt)-(x+k3x*dt)),k4y=(x+k3x*dt)*(rho-(z+k3z*dt))-(y+k3y*dt),k4z=(x+k3x*dt)*(y+k3y*dt)-beta*(z+k3z*dt);
+      p.x+=(k1x+2*k2x+2*k3x+k4x)*dt/6;
+      p.y+=(k1y+2*k2y+2*k3y+k4y)*dt/6;
+      p.z+=(k1z+2*k2z+2*k3z+k4z)*dt/6;
+      // Project (rotate Y, offset z by -25, scale)
+      const xr=(p.x)*Math.cos(rotY)-(p.z-25)*Math.sin(rotY);
+      const zr=(p.x)*Math.sin(rotY)+(p.z-25)*Math.cos(rotY);
+      const depth=4+zr*0.04;
+      const px=cx2+xr*sc/depth;
+      const py=cy2+p.y*sc/depth;
+      if(!p.has){p.has=true;p.px=px;p.py=py;continue;}
+      const spd=Math.min(1,Math.hypot(px-p.px,py-p.py)*0.08);
+      const r2=Math.round(40+spd*200),g2=Math.round(20+spd*145),b2=Math.round(50+spd*30);
+      ctx.strokeStyle='rgba('+r2+','+g2+','+b2+','+(0.5/depth)+')';
+      ctx.lineWidth=0.8;
+      ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(px,py);ctx.stroke();
+      p.px=px;p.py=py;
     }
     requestAnimationFrame(step);
   }
