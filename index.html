@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="backprop/">
+    <div class="preview" id="preview-backprop"><canvas id="cv-backprop"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 31</div>
+      <h2>Backprop</h2>
+      <div class="desc">A network of neurons. Two inputs — the coordinates of a point. One output — which class it belongs to. A hidden layer between them that can represent whatever geometry the data requires. At the start, the weights are random and the answer is nonsense. After every guess, the error is computed and propagated backward through the network, in the exact direction each weight should move to reduce it. Gradient descent: the same logic that water finds the bottom of a valley. No one designs the decision boundary. The network finds it by correcting its own mistakes, one step at a time, until the errors stop. Frank Rosenblatt built the first neural network in 1958 — the Perceptron. It couldn't solve XOR. The insight that hidden layers unlock nonlinearity took thirty more years. Watch the boundary morph from a flat plane to two interlocking spirals. The order is not designed. It is found, by a system that knows nothing except its own error.</div>
+      <div class="date">18 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="strange/">
     <div class="preview" id="preview-strange"><canvas id="cv-strange"></canvas></div>
     <div class="meta">
@@ -2505,6 +2515,84 @@ footer a{
       ctx.beginPath();ctx.moveTo(p.px,p.py);ctx.lineTo(px,py);ctx.stroke();
       p.px=px;p.py=py;
     }
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Backprop (neural net) preview ---
+(function(){
+  const cv=document.getElementById('cv-backprop');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  // Mini spiral dataset
+  const pts=[];
+  for(let i=0;i<60;i++){
+    const cls=i<30?0:1;
+    const r=(i%30)/30*0.4+0.05;
+    const theta=r*3*Math.PI+cls*Math.PI;
+    pts.push({x:0.5+r*Math.cos(theta)*0.45,y:0.5+r*Math.sin(theta)*0.45,c:cls});
+  }
+
+  // Fake "learning progress" — oscillates between random and structured
+  function boundaryVal(x,y,prog){
+    // prog: 0 = random noise, 1 = perfect spiral boundary
+    const nx=(x-0.5)*2, ny=(y-0.5)*2;
+    const r=Math.hypot(nx,ny);
+    const theta=Math.atan2(ny,nx);
+    // Perfect boundary: theta mod 2PI vs r*3.5*PI
+    const idealR=r/0.9;
+    const idealTheta=idealR*3.5*Math.PI;
+    const idealCls=(theta+Math.PI)/(2*Math.PI);
+    const targetTheta=Math.abs((theta - idealTheta + Math.PI)%(2*Math.PI)-Math.PI);
+    const noise=Math.sin(x*15+t*0.5)*Math.cos(y*12-t*0.3)*0.5;
+    const structured = 1 - Math.min(1, targetTheta*1.5);
+    return structured*prog + noise*(1-prog)*0.5;
+  }
+
+  function step(){
+    t+=0.016;
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+
+    // Simulate learning cycle: 0 → 1 → reset → 0
+    const cycle=(t%8)/8;
+    const prog=cycle<0.85?cycle/0.85:(1-(cycle-0.85)/0.15);
+
+    // Draw decision boundary
+    const G=20;
+    const cw=w/G, ch=h/G;
+    const c0=[232,165,71], c1=[58,142,212];
+    for(let gy=0;gy<G;gy++){
+      for(let gx=0;gx<G;gx++){
+        const x=(gx+0.5)/G, y=(gy+0.5)/G;
+        const v=boundaryVal(x,y,prog);
+        const r=Math.round(c0[0]*(1-v)+c1[0]*v);
+        const g=Math.round(c0[1]*(1-v)+c1[1]*v);
+        const b=Math.round(c0[2]*(1-v)+c1[2]*v);
+        ctx.fillStyle='rgba('+r+','+g+','+b+','+(0.3+Math.abs(v-0.5)*0.4)+')';
+        ctx.fillRect(gx*cw,gy*ch,cw+0.5,ch+0.5);
+      }
+    }
+
+    // Draw data points
+    for(const p of pts){
+      const px=p.x*w, py=p.y*h;
+      const col=p.c===0?c0:c1;
+      ctx.fillStyle='rgba('+col[0]+','+col[1]+','+col[2]+',0.85)';
+      ctx.beginPath();
+      ctx.arc(px,py,2,0,Math.PI*2);
+      ctx.fill();
+    }
+
     requestAnimationFrame(step);
   }
   step();
