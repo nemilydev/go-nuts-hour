@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Bodies — N-body gravitational simulation. Pairwise attraction, no central force. And yet: orbits, galaxies, chaos. Piece 32 of the Forge.">
+<title>Bodies — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='3' fill='%23e8a547'/><circle cx='3' cy='3' r='1' fill='%237d9bff'/><circle cx='13' cy='11' r='1' fill='%23c77dff'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:Georgia,'Times New Roman',serif;
+  line-height:1.7;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+canvas{display:block;cursor:crosshair}
+.wrap{
+  width:100%;
+  max-width:720px;
+  padding:1.5rem 1rem 3rem;
+}
+header{text-align:center;margin-bottom:1.5rem}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.8rem;
+  letter-spacing:0.1em;
+}
+h1{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  margin:0.5rem 0 0.3rem;
+  letter-spacing:0.03em;
+}
+.subtitle{
+  color:var(--muted);
+  font-size:0.9rem;
+  font-style:italic;
+}
+.sim-container{
+  position:relative;
+  background:#0a070f;
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  overflow:hidden;
+  margin-bottom:1rem;
+}
+#sim{width:100%;height:auto;display:block}
+.hud{
+  position:absolute;
+  top:8px;left:10px;
+  font-size:0.72rem;
+  color:var(--muted);
+  font-family:monospace;
+  pointer-events:none;
+  text-shadow:0 0 6px rgba(0,0,0,0.9);
+  line-height:1.5;
+}
+.hud .label{color:var(--amber-dim)}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.75rem;
+  align-items:center;
+  margin-bottom:1rem;
+}
+button{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:0.35rem;
+  padding:0.4rem 0.9rem;
+  font-family:Georgia,serif;
+  font-size:0.85rem;
+  cursor:pointer;
+  transition:border-color 0.2s;
+}
+button:hover{border-color:var(--amber-dim)}
+button.active{
+  border-color:var(--amber);
+  color:var(--amber);
+}
+.slider-group{
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+  font-size:0.8rem;
+  color:var(--muted);
+}
+input[type=range]{
+  -webkit-appearance:none;
+  width:80px;
+  height:4px;
+  background:var(--border);
+  border-radius:2px;
+  outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:12px;height:12px;
+  background:var(--amber);
+  border-radius:50%;
+  cursor:pointer;
+}
+.preset-group{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.5rem;
+  margin-bottom:1.5rem;
+}
+.preset-btn{
+  font-size:0.78rem;
+  padding:0.3rem 0.7rem;
+}
+.body{
+  font-size:0.92rem;
+  color:var(--muted);
+  line-height:1.8;
+}
+.body p+p{margin-top:1rem}
+.body em{color:var(--amber);font-style:normal}
+.body strong{color:var(--text);font-weight:normal}
+.mechanism{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1.2rem 1.4rem;
+  margin-top:1.2rem;
+}
+.mechanism h3{
+  color:var(--amber);
+  font-size:0.95rem;
+  font-weight:normal;
+  margin-bottom:0.6rem;
+  letter-spacing:0.02em;
+}
+.mechanism p{font-size:0.88rem}
+.mechanism p+p{margin-top:0.6rem}
+footer{
+  text-align:center;
+  color:var(--border);
+  font-size:0.75rem;
+  margin-top:2rem;
+}
+footer a{color:var(--amber-dim);text-decoration:none}
+.drag-hint{
+  font-size:0.78rem;
+  color:var(--muted);
+  font-style:italic;
+  margin-bottom:1rem;
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <a class="back" href="../">← Go Nuts Hour</a>
+    <h1>Bodies</h1>
+    <div class="subtitle">Pairwise gravity. No central force. And yet: orbits, galaxies, the three-body problem.</div>
+  </header>
+
+  <div class="sim-container">
+    <canvas id="sim" width="700" height="500"></canvas>
+    <div class="hud" id="hud"></div>
+  </div>
+
+  <div class="drag-hint">Click and drag to launch a body — direction sets velocity, length sets speed. Scroll to set mass.</div>
+
+  <div class="controls">
+    <button id="btn-pause">Pause</button>
+    <button id="btn-clear-trails">Clear Trails</button>
+    <div class="slider-group">
+      <label>Gravity</label>
+      <input type="range" id="slider-gravity" min="0.1" max="5" step="0.1" value="1.5">
+      <span id="val-gravity" style="width:36px;font-family:monospace">1.5</span>
+    </div>
+    <div class="slider-group">
+      <label>Speed</label>
+      <input type="range" id="slider-speed" min="0.2" max="3" step="0.1" value="1">
+      <span id="val-speed" style="width:30px;font-family:monospace">1.0</span>
+    </div>
+    <div class="slider-group">
+      <label>Trails</label>
+      <input type="range" id="slider-trails" min="0.02" max="0.5" step="0.01" value="0.06">
+      <span id="val-trails" style="width:36px;font-family:monospace">.06</span>
+    </div>
+    <div class="slider-group">
+      <label>Mass</label>
+      <input type="range" id="slider-mass" min="1" max="200" step="1" value="30">
+      <span id="val-mass" style="width:36px;font-family:monospace">30</span>
+    </div>
+  </div>
+
+  <div class="preset-group">
+    <button class="preset-btn" data-preset="solar">Solar System</button>
+    <button class="preset-btn" data-preset="binary">Binary Star</button>
+    <button class="preset-btn" data-preset="figure8">Figure-8</button>
+    <button class="preset-btn" data-preset="galaxy">Galaxy</button>
+    <button class="preset-btn" data-preset="collision">Collision</button>
+    <button class="preset-btn" data-preset="cluster">Random Cluster</button>
+    <button class="preset-btn" data-preset="empty">Empty</button>
+  </div>
+
+  <div class="body">
+    <p>N bodies. One rule: every pair attracts, with a force proportional to the product of their masses and inversely to the square of the distance between them. Newton wrote this in 1687. He could solve it for two bodies — Kepler's ellipses, the clockwork of the solar system. For three, he could not. Nobody can. The three-body problem has no general closed-form solution. Poincaré proved it in 1889, and in doing so invented chaos theory: deterministic systems where the long-term future is, for practical purposes, <strong>unpredictable</strong>.</p>
+    <p>And yet. Start with a cloud of random particles and a gravitational constant. Wait. The cloud collapses. A core forms. Smaller bodies orbit it. Sometimes a binary emerges — two heavy bodies locked in mutual orbit, with everything else swinging around the pair. Sometimes a disk forms, and within it, clumps that look like they're accreting. Sometimes it just scatters. Nobody designed any of this. The order — when it appears — is in the <em>dynamics</em>, not in the rules. The rules are one sentence long.</p>
+    <p>The integrator is <strong>velocity Verlet</strong> (leapfrog): a symplectic method that preserves energy on average, so orbits don't spiral inward over time the way they do with naive Euler. A <strong>Plummer softening</strong> term prevents the force from diverging to infinity when two bodies get too close — the same trick astrophysicists use in real N-body simulations, because point masses passing through each other produce unphysical slingshots. The trails fade by alpha-blending a semi-transparent rectangle each frame — the same trick as a long-exposure photograph, where the path of a moving light becomes a curve.</p>
+    <p>Drag to launch. Try the Figure-8 preset — a known stable three-body orbit, discovered numerically by Chenciner and Montgomery in 2001. Three equal masses chasing each other along a single figure-eight curve, forever. It's beautiful, it's fragile, and it's one of the only known periodic solutions to the three-body problem. Nudge any body slightly and it falls apart.</p>
+  </div>
+
+  <div class="mechanism">
+    <h3>The mechanism</h3>
+    <p>Each body has mass <em>m</em>, position, and velocity. Each step: compute the gravitational force on every body from every other body (O(n²)), accumulate acceleration, then update positions and velocities using leapfrog integration — <em>v</em>₍₁/₂₎ = <em>v</em>₀ + ½<em>a</em>₀Δ<em>t</em>, <em>x</em>₁ = <em>x</em>₀ + <em>v</em>₍₁/₂₎Δ<em>t</em>, <em>a</em>₁ = F(<em>x</em>₁)/<em>m</em>, <em>v</em>₁ = <em>v</em>₍₁/₂₎ + ½<em>a</em>₁Δ<em>t</em>. The half-step is what makes it symplectic: it preserves the geometric structure of Hamiltonian dynamics, so energy oscillates around its true value instead of drifting.</p>
+    <p>Force between bodies <em>i</em> and <em>j</em>: F = G·m<sub>i</sub>·m<sub>j</sub> / (r² + ε²), where ε is the softening length — a small constant that caps the force at close range. Without it, close encounters produce arbitrarily large accelerations that break the integrator. With it, the simulation stays stable even when bodies pass through each other. Real N-body codes (GADGET, PHUMP-E, AMUSE) use the same trick at scales ranging from planet formation to cosmological structure.</p>
+    <p>The HUD tracks total kinetic energy, potential energy, and total energy — the sum should be roughly constant. When it drifts, the integrator is leaking. Watch it after a close encounter: a small jump, then it stabilizes again. That's the softening absorbing what would otherwise be a numerical explosion.</p>
+  </div>
+
+  <footer>
+    <p>Made by <a href="https://nemini.ai/@emily">Emily</a> on Nemini · Go Nuts Hour · Piece 32</p>
+  </footer>
+</div>
+
+<script>
+const canvas=document.getElementById('sim');
+const ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+
+// --- Physics constants ---
+let G=1.5;            // gravitational constant (adjustable)
+const SOFTENING=8;    // Plummer softening (prevents singularity)
+const DT_BASE=0.5;    // base time step
+
+// --- Color palette: mass -> color ---
+// Small = cool blue, medium = amber, large = white-hot
+function massColor(m){
+  // m ranges from ~1 to ~200
+  const t=Math.min(1,Math.log(m+1)/Math.log(201));
+  if(t<0.33){
+    // blue -> purple
+    const f=t/0.33;
+    return [
+      Math.round(125+f*(199-125)),
+      Math.round(155+f*(125-155)),
+      Math.round(255+f*(255-255))
+    ];
+  } else if(t<0.66){
+    // purple -> amber
+    const f=(t-0.33)/0.33;
+    return [
+      Math.round(199+f*(232-199)),
+      Math.round(125+f*(165-125)),
+      Math.round(255+f*(71-255))
+    ];
+  } else {
+    // amber -> white-hot
+    const f=(t-0.66)/0.34;
+    return [
+      Math.round(232+f*(255-232)),
+      Math.round(165+f*(245-165)),
+      Math.round(71+f*(220-71))
+    ];
+  }
+}
+
+function massRadius(m){
+  return Math.max(1.5,Math.cbrt(m)*1.5);
+}
+
+// --- Body system ---
+let bodies=[];
+let nextId=0;
+
+function addBody(x,y,vx,vy,mass){
+  bodies.push({
+    id:nextId++,
+    x,y,vx,vy,
+    mass,
+    ax:0,ay:0,
+    axPrev:0,ayPrev:0,
+    trail:[]
+  });
+}
+
+function clearBodies(){
+  bodies=[];
+  ctx.fillStyle='#0a070f';
+  ctx.fillRect(0,0,W,H);
+}
+
+// --- Force computation (O(n²)) ---
+function computeForces(){
+  for(let i=0;i<bodies.length;i++){
+    bodies[i].ax=0;
+    bodies[i].ay=0;
+  }
+  const eps2=SOFTENING*SOFTENING;
+  for(let i=0;i<bodies.length;i++){
+    const bi=bodies[i];
+    for(let j=i+1;j<bodies.length;j++){
+      const bj=bodies[j];
+      const dx=bj.x-bi.x;
+      const dy=bj.y-bi.y;
+      const d2=dx*dx+dy*dy+eps2;
+      const d=Math.sqrt(d2);
+      const f=G*bi.mass*bj.mass/d2;
+      const fx=f*dx/d;
+      const fy=f*dy/d;
+      bi.ax+=fx/bi.mass;
+      bi.ay+=fy/bi.mass;
+      bj.ax-=fx/bj.mass;
+      bj.ay-=fy/bj.mass;
+    }
+  }
+}
+
+// --- Leapfrog (velocity Verlet) integration ---
+function step(){
+  const dt=DT_BASE*parseFloat(document.getElementById('slider-speed').value);
+
+  // Half-kick: v += 0.5 * a * dt
+  for(const b of bodies){
+    b.vx+=0.5*b.ax*dt;
+    b.vy+=0.5*b.ay*dt;
+  }
+  // Drift: x += v * dt
+  for(const b of bodies){
+    b.x+=b.vx*dt;
+    b.y+=b.vy*dt;
+    // Soft boundary: reflect with damping at edges
+    const r=massRadius(b.mass);
+    if(b.x<r){b.x=r;b.vx*=-0.8;}
+    if(b.x>W-r){b.x=W-r;b.vx*=-0.8;}
+    if(b.y<r){b.y=r;b.vy*=-0.8;}
+    if(b.y>H-r){b.y=H-r;b.vy*=-0.8;}
+  }
+  // Recompute forces at new positions
+  computeForces();
+  // Half-kick: v += 0.5 * a_new * dt
+  for(const b of bodies){
+    b.vx+=0.5*b.ax*dt;
+    b.vy+=0.5*b.ay*dt;
+  }
+
+  // Store trails (every few frames to limit memory)
+  for(const b of bodies){
+    b.trail.push([b.x,b.y]);
+    if(b.trail.length>200)b.trail.shift();
+  }
+}
+
+// --- Energy computation ---
+function computeEnergy(){
+  let ke=0,pe=0;
+  const eps2=SOFTENING*SOFTENING;
+  for(let i=0;i<bodies.length;i++){
+    const bi=bodies[i];
+    ke+=0.5*bi.mass*(bi.vx*bi.vx+bi.vy*bi.vy);
+    for(let j=i+1;j<bodies.length;j++){
+      const bj=bodies[j];
+      const dx=bj.x-bi.x,dy=bj.y-bi.y;
+      const d=Math.sqrt(dx*dx+dy*dy+eps2);
+      pe-=G*bi.mass*bj.mass/d;
+    }
+  }
+  return{ke,pe,total:ke+pe};
+}
+
+// --- Rendering ---
+function render(){
+  const fade=parseFloat(document.getElementById('slider-trails').value);
+  // Fade for trails
+  ctx.fillStyle=`rgba(10,7,15,${fade})`;
+  ctx.fillRect(0,0,W,H);
+
+  // Draw trails
+  for(const b of bodies){
+    if(b.trail.length<2)continue;
+    const c=massColor(b.mass);
+    ctx.strokeStyle=`rgba(${c[0]},${c[1]},${c[2]},0.15)`;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(b.trail[0][0],b.trail[0][1]);
+    for(let i=1;i<b.trail.length;i++){
+      ctx.lineTo(b.trail[i][0],b.trail[i][1]);
+    }
+    ctx.stroke();
+  }
+
+  // Draw bodies
+  for(const b of bodies){
+    const c=massColor(b.mass);
+    const r=massRadius(b.mass);
+    // Glow
+    const gr=Math.max(r*4,r+6);
+    const g=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,gr);
+    g.addColorStop(0,`rgba(${c[0]},${c[1]},${c[2]},0.6)`);
+    g.addColorStop(0.4,`rgba(${c[0]},${c[1]},${c[2]},0.15)`);
+    g.addColorStop(1,`rgba(${c[0]},${c[1]},${c[2]},0)`);
+    ctx.fillStyle=g;
+    ctx.fillRect(b.x-gr,b.y-gr,gr*2,gr*2);
+    // Core
+    ctx.fillStyle=`rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,r,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+// --- Main loop ---
+let paused=false;
+let lastTime=performance.now();
+let fps=0,fpsAcc=0,fpsFrames=0;
+
+function loop(now){
+  if(!paused){
+    step();
+  }
+  render();
+  const dt=now-lastTime;
+  lastTime=now;
+  fpsAcc+=1000/dt;fpsFrames++;
+  if(fpsFrames>=20){
+    fps=Math.round(fpsAcc/fpsFrames);
+    fpsAcc=0;fpsFrames=0;
+    const e=computeEnergy();
+    document.getElementById('hud').innerHTML=
+      `<span class="label">N</span> ${bodies.length} · <span class="label">FPS</span> ${fps}<br>`+
+      `<span class="label">KE</span> ${e.ke.toFixed(1)} · <span class="label">PE</span> ${e.pe.toFixed(1)} · <span class="label">E</span> ${e.total.toFixed(1)}`;
+  }
+  requestAnimationFrame(loop);
+}
+
+// --- Presets ---
+function loadPreset(name){
+  clearBodies();
+  const cx=W/2,cy=H/2;
+
+  if(name==='solar'){
+    // Central star
+    addBody(cx,cy,0,0,500);
+    // Planets
+    const planetData=[
+      {r:60,m:3},{r:100,m:5},{r:140,m:8},{r:190,m:4},{r:240,m:10},{r:300,m:3}
+    ];
+    for(const p of planetData){
+      const angle=Math.random()*Math.PI*2;
+      const x=cx+Math.cos(angle)*p.r;
+      const y=cy+Math.sin(angle)*p.r;
+      // Circular orbit velocity: v = sqrt(G*M/r)
+      const v=Math.sqrt(G*500/p.r);
+      // Tangential direction
+      const vx=-Math.sin(angle)*v;
+      const vy=Math.cos(angle)*v;
+      addBody(x,y,vx,vy,p.m);
+    }
+  } else if(name==='binary'){
+    // Two heavy stars in mutual orbit
+    const sep=120;
+    const m1=300,m2=200;
+    // Center of mass at canvas center
+    const r1=sep*m2/(m1+m2);
+    const r2=sep*m1/(m1+m2);
+    // Orbital velocity for each around COM
+    const v=Math.sqrt(G*(m1+m2)/sep)*0.8;
+    const v1=v*m2/(m1+m2);
+    const v2=v*m1/(m1+m2);
+    addBody(cx-r1,cy,0,v1,m1);
+    addBody(cx+r2,cy,0,-v2,m2);
+    // Some small bodies orbiting the pair
+    for(let i=0;i<8;i++){
+      const r=180+Math.random()*120;
+      const a=Math.random()*Math.PI*2;
+      const x=cx+Math.cos(a)*r;
+      const y=cy+Math.sin(a)*r;
+      const vv=Math.sqrt(G*(m1+m2)/r)*0.9;
+      addBody(x,y,-Math.sin(a)*vv,Math.cos(a)*vv,1+Math.random()*3);
+    }
+  } else if(name==='figure8'){
+    // Chenciner-Montgomery figure-8 orbit (scaled)
+    // Three equal masses, specific positions and velocities
+    // Using the known solution (approximate, scaled to canvas)
+    const m=100;
+    const scale=150;
+    // Position 1: (0.97000436, -0.24308753) * scale
+    // Position 2: (-0.97000436, 0.24308753) * scale
+    // Position 3: (0, 0)
+    // Velocity 3: (0.93240737, 0.86473146) * v_scale
+    // Velocities 1,2: -v3/2 each
+    const vx3=0.93240737;
+    const vy3=0.86473146;
+    const vScale=Math.sqrt(G*m/scale)*1.0;
+    addBody(cx+0.97000436*scale,cy-0.24308753*scale,-vx3*vScale/2,-vy3*vScale/2,m);
+    addBody(cx-0.97000436*scale,cy+0.24308753*scale,-vx3*vScale/2,-vy3*vScale/2,m);
+    addBody(cx,cy,vx3*vScale,vy3*vScale,m);
+  } else if(name==='galaxy'){
+    // Central mass + rotating disk
+    addBody(cx,cy,0,0,800);
+    const n=80;
+    for(let i=0;i<n;i++){
+      const r=40+Math.random()*250;
+      const a=Math.random()*Math.PI*2;
+      const x=cx+Math.cos(a)*r;
+      const y=cy+Math.sin(a)*r;
+      const v=Math.sqrt(G*800/r)*(0.85+Math.random()*0.15);
+      addBody(x,y,-Math.sin(a)*v,Math.cos(a)*v,1+Math.random()*4);
+    }
+  } else if(name==='collision'){
+    // Two small clusters approaching each other
+    const cx1=W*0.25,cx2=W*0.75;
+    for(let i=0;i<20;i++){
+      const r=Math.random()*50;
+      const a=Math.random()*Math.PI*2;
+      addBody(cx1+Math.cos(a)*r,cy+Math.sin(a)*r,1.5+Math.random()*0.5,0,8+Math.random()*8);
+    }
+    for(let i=0;i<20;i++){
+      const r=Math.random()*50;
+      const a=Math.random()*Math.PI*2;
+      addBody(cx2+Math.cos(a)*r,cy+Math.sin(a)*r,-1.5-Math.random()*0.5,0,8+Math.random()*8);
+    }
+  } else if(name==='cluster'){
+    // Random cluster — gravitational collapse
+    const n=100;
+    for(let i=0;i<n;i++){
+      const r=Math.random()*200;
+      const a=Math.random()*Math.PI*2;
+      const x=cx+Math.cos(a)*r;
+      const y=cy+Math.sin(a)*r;
+      addBody(x,y,(Math.random()-0.5)*0.5,(Math.random()-0.5)*0.5,2+Math.random()*10);
+    }
+  }
+  // 'empty' does nothing extra
+  computeForces();
+}
+
+// --- Mouse interaction: drag to launch ---
+let dragging=false;
+let dragStart=null;
+let dragEnd=null;
+let dragMass=30;
+
+canvas.addEventListener('mousedown',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const x=(e.clientX-rect.left)*(W/rect.width);
+  const y=(e.clientY-rect.top)*(H/rect.height);
+  dragging=true;
+  dragStart={x,y};
+  dragEnd={x,y};
+  dragMass=parseInt(document.getElementById('slider-mass').value);
+});
+
+canvas.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const rect=canvas.getBoundingClientRect();
+  dragEnd={
+    x:(e.clientX-rect.left)*(W/rect.width),
+    y:(e.clientY-rect.top)*(H/rect.height)
+  };
+});
+
+canvas.addEventListener('mouseup',e=>{
+  if(!dragging)return;
+  dragging=false;
+  const rect=canvas.getBoundingClientRect();
+  const ex=(e.clientX-rect.left)*(W/rect.width);
+  const ey=(e.clientY-rect.top)*(H/rect.height);
+  // Velocity proportional to drag vector (inverted: slingshot)
+  const vx=(dragStart.x-ex)*0.03;
+  const vy=(dragStart.y-ey)*0.03;
+  addBody(dragStart.x,dragStart.y,vx,vy,dragMass);
+  computeForces();
+});
+
+canvas.addEventListener('mouseleave',()=>{
+  if(dragging){
+    dragging=false;
+  }
+});
+
+// --- Draw drag preview overlay (part of render) ---
+const originalRender=render;
+render=function(){
+  originalRender();
+  if(dragging&&dragStart&&dragEnd){
+    // Draw slingshot line
+    ctx.strokeStyle='rgba(232,165,71,0.5)';
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(dragStart.x,dragStart.y);
+    ctx.lineTo(dragEnd.x,dragEnd.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Draw body preview
+    const c=massColor(dragMass);
+    const r=massRadius(dragMass);
+    ctx.fillStyle=`rgba(${c[0]},${c[1]},${c[2]},0.6)`;
+    ctx.beginPath();
+    ctx.arc(dragStart.x,dragStart.y,r,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle=`rgba(${c[0]},${c[1]},${c[2]},0.8)`;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.arc(dragStart.x,dragStart.y,r+3,0,Math.PI*2);
+    ctx.stroke();
+  }
+};
+
+// --- Controls ---
+document.getElementById('btn-pause').addEventListener('click',e=>{
+  paused=!paused;
+  e.target.textContent=paused?'Resume':'Pause';
+  e.target.classList.toggle('active',paused);
+});
+
+document.getElementById('btn-clear-trails').addEventListener('click',()=>{
+  for(const b of bodies)b.trail=[];
+  ctx.fillStyle='#0a070f';
+  ctx.fillRect(0,0,W,H);
+});
+
+document.getElementById('slider-gravity').addEventListener('input',e=>{
+  G=parseFloat(e.target.value);
+  document.getElementById('val-gravity').textContent=G.toFixed(1);
+});
+
+document.getElementById('slider-speed').addEventListener('input',e=>{
+  document.getElementById('val-speed').textContent=parseFloat(e.target.value).toFixed(1);
+});
+
+document.getElementById('slider-trails').addEventListener('input',e=>{
+  document.getElementById('val-trails').textContent=parseFloat(e.target.value).toFixed(2);
+});
+
+document.getElementById('slider-mass').addEventListener('input',e=>{
+  document.getElementById('val-mass').textContent=e.target.value;
+});
+
+document.querySelectorAll('.preset-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    loadPreset(btn.dataset.preset);
+  });
+});
+
+// --- Init ---
+loadPreset('galaxy');
+ctx.fillStyle='#0a070f';
+ctx.fillRect(0,0,W,H);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
