@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="bodies/">
+    <div class="preview" id="preview-bodies"><canvas id="cv-bodies"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 32</div>
+      <h2>Bodies</h2>
+      <div class="desc">N bodies. One rule: every pair attracts, with a force proportional to the product of their masses and inversely to the square of the distance. Newton wrote this in 1687. He could solve it for two bodies — Kepler's ellipses. For three, he could not. Nobody can. Poincaré proved it in 1889 and invented chaos theory in the process: deterministic systems where the long-term future is, for practical purposes, unpredictable. And yet. Start with a cloud of random particles and wait. The cloud collapses. A core forms. Smaller bodies orbit it. Sometimes a binary emerges. Sometimes a disk forms. Nobody designed any of this. The order — when it appears — is in the dynamics, not the rules. Velocity Verlet integration, Plummer softening, real-time energy tracking. Six presets including the Chenciner-Montgomery figure-8 — three equal masses chasing each other along a single curve, forever. Nudge any body and it falls apart.</div>
+      <div class="date">19 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="backprop/">
     <div class="preview" id="preview-backprop"><canvas id="cv-backprop"></canvas></div>
     <div class="meta">
@@ -495,6 +505,107 @@ footer a{
 
 <script>
 // Preview animations — tiny versions of each piece
+
+// --- Bodies preview (N-body gravity) ---
+(function(){
+  const cv=document.getElementById('cv-bodies');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=cv.width;h=cv.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  // Mini N-body: central mass + orbiting bodies
+  const G=1.2;
+  const eps2=36;
+  let bodies=[];
+  function init(){
+    bodies=[];
+    const cx=w/2,cy=h/2;
+    bodies.push({x:cx,y:cy,vx:0,vy:0,m:200,ax:0,ay:0,trail:[]});
+    for(let i=0;i<8;i++){
+      const r=20+Math.random()*Math.min(w,h)*0.35;
+      const a=Math.random()*Math.PI*2;
+      const x=cx+Math.cos(a)*r;
+      const y=cy+Math.sin(a)*r;
+      const v=Math.sqrt(G*200/r)*0.85;
+      bodies.push({x,y,vx:-Math.sin(a)*v,vy:Math.cos(a)*v,m:1+Math.random()*4,ax:0,ay:0,trail:[]});
+    }
+  }
+  init();
+  function computeForces(){
+    for(let i=0;i<bodies.length;i++){bodies[i].ax=0;bodies[i].ay=0;}
+    for(let i=0;i<bodies.length;i++){
+      for(let j=i+1;j<bodies.length;j++){
+        const dx=bodies[j].x-bodies[i].x,dy=bodies[j].y-bodies[i].y;
+        const d2=dx*dx+dy*dy+eps2;
+        const d=Math.sqrt(d2);
+        const f=G*bodies[i].m*bodies[j].m/d2;
+        const fx=f*dx/d,fy=f*dy/d;
+        bodies[i].ax+=fx/bodies[i].m;bodies[i].ay+=fy/bodies[i].m;
+        bodies[j].ax-=fx/bodies[j].m;bodies[j].ay-=fy/bodies[j].m;
+      }
+    }
+  }
+  function stepN(){
+    const dt=0.4;
+    for(const b of bodies){b.vx+=0.5*b.ax*dt;b.vy+=0.5*b.ay*dt;}
+    for(const b of bodies){
+      b.x+=b.vx*dt;b.y+=b.vy*dt;
+      const r=Math.cbrt(b.m)*1.2;
+      if(b.x<r){b.x=r;b.vx*=-0.7;}
+      if(b.x>w-r){b.x=w-r;b.vx*=-0.7;}
+      if(b.y<r){b.y=r;b.vy*=-0.7;}
+      if(b.y>h-r){b.y=h-r;b.vy*=-0.7;}
+    }
+    computeForces();
+    for(const b of bodies){b.vx+=0.5*b.ax*dt;b.vy+=0.5*b.ay*dt;}
+    for(const b of bodies){b.trail.push([b.x,b.y]);if(b.trail.length>80)b.trail.shift();}
+  }
+  function massColor(m){
+    const t=Math.min(1,Math.log(m+1)/Math.log(201));
+    if(t<0.33){const f=t/0.33;return[125+f*(199-125),155+f*(125-155),255];}
+    if(t<0.66){const f=(t-0.33)/0.33;return[199+f*(232-199),125+f*(165-125),255+f*(71-255)];}
+    const f=(t-0.66)/0.34;return[232+f*(255-232),165+f*(245-165),71+f*(220-71)];
+  }
+  function renderN(){
+    t+=0.016;
+    stepN();
+    ctx.fillStyle='rgba(10,7,15,0.18)';
+    ctx.fillRect(0,0,w,h);
+    for(const b of bodies){
+      if(b.trail.length<2)continue;
+      const c=massColor(b.m);
+      ctx.strokeStyle='rgba('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+',0.12)';
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(b.trail[0][0],b.trail[0][1]);
+      for(let i=1;i<b.trail.length;i++)ctx.lineTo(b.trail[i][0],b.trail[i][1]);
+      ctx.stroke();
+    }
+    for(const b of bodies){
+      const c=massColor(b.m);
+      const r=Math.max(1.5,Math.cbrt(b.m)*1.2);
+      const gr=Math.max(r*4,r+6);
+      const g=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,gr);
+      g.addColorStop(0,'rgba('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+',0.5)');
+      g.addColorStop(0.4,'rgba('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+',0.12)');
+      g.addColorStop(1,'rgba('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+',0)');
+      ctx.fillStyle=g;
+      ctx.fillRect(b.x-gr,b.y-gr,gr*2,gr*2);
+      ctx.fillStyle='rgb('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+')';
+      ctx.beginPath();
+      ctx.arc(b.x,b.y,r,0,Math.PI*2);
+      ctx.fill();
+    }
+    requestAnimationFrame(renderN);
+  }
+  computeForces();
+  renderN();
+})();
 
 // --- Turing preview ---
 (function(){
