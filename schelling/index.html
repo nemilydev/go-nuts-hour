@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Schelling — individual preferences, systemic outcomes. Mild bias, extreme segregation. Nobody designed this. Piece 33 of Go Nuts Hour.">
+<title>Schelling — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><rect x='2' y='2' width='4' height='4' fill='%23e8a547'/><rect x='10' y='2' width='4' height='4' fill='%2358beed'/><rect x='6' y='6' width='4' height='4' fill='%23e8a547'/><rect x='2' y='10' width='4' height='4' fill='%2358beed'/><rect x='10' y='10' width='4' height='4' fill='%23e8a547'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:Georgia,'Times New Roman',serif;
+  line-height:1.7;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+canvas{display:block}
+.wrap{
+  width:100%;
+  max-width:720px;
+  padding:1.5rem 1rem 3rem;
+}
+header{text-align:center;margin-bottom:1.5rem}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.8rem;
+  letter-spacing:0.1em;
+}
+h1{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  margin:0.5rem 0 0.3rem;
+  letter-spacing:0.03em;
+}
+.subtitle{
+  color:var(--muted);
+  font-size:0.9rem;
+  font-style:italic;
+}
+.sim-container{
+  position:relative;
+  background:#0a070f;
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  overflow:hidden;
+  margin-bottom:1rem;
+}
+#sim{width:100%;height:auto;display:block}
+.hud{
+  position:absolute;
+  top:8px;left:10px;
+  font-size:0.72rem;
+  color:var(--muted);
+  font-family:monospace;
+  pointer-events:none;
+  text-shadow:0 0 6px rgba(0,0,0,0.9);
+  line-height:1.6;
+}
+.hud .label{color:var(--amber-dim)}
+.hud .val{color:var(--text)}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.75rem;
+  align-items:center;
+  margin-bottom:1rem;
+}
+button{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:0.35rem;
+  padding:0.4rem 0.9rem;
+  font-family:Georgia,serif;
+  font-size:0.85rem;
+  cursor:pointer;
+  transition:border-color 0.2s;
+}
+button:hover{border-color:var(--amber-dim)}
+button.active{
+  border-color:var(--amber);
+  color:var(--amber);
+}
+.slider-group{
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+  font-size:0.8rem;
+  color:var(--muted);
+}
+input[type=range]{
+  -webkit-appearance:none;
+  width:80px;
+  height:4px;
+  background:var(--border);
+  border-radius:2px;
+  outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:12px;height:12px;
+  background:var(--amber);
+  border-radius:50%;
+  cursor:pointer;
+}
+.slider-group span{
+  font-family:monospace;
+  width:38px;
+  text-align:right;
+}
+.chart-container{
+  background:#0a070f;
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  overflow:hidden;
+  margin-bottom:1rem;
+}
+#chart{width:100%;height:auto;display:block}
+.chart-label{
+  font-size:0.72rem;
+  color:var(--muted);
+  font-family:monospace;
+  padding:0.4rem 0.8rem;
+  border-top:1px solid var(--border);
+  display:flex;
+  gap:1.5rem;
+  justify-content:center;
+}
+.chart-label span{display:flex;align-items:center;gap:0.4rem}
+.chart-label .sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+.body{
+  font-size:0.92rem;
+  color:var(--muted);
+  line-height:1.8;
+}
+.body p+p{margin-top:1rem}
+.body em{color:var(--amber);font-style:normal}
+.body strong{color:var(--text);font-weight:normal}
+.mechanism{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1.2rem 1.4rem;
+  margin-top:1.2rem;
+}
+.mechanism h3{
+  color:var(--amber);
+  font-size:0.95rem;
+  font-weight:normal;
+  margin-bottom:0.6rem;
+  letter-spacing:0.02em;
+}
+.mechanism p{font-size:0.88rem}
+.mechanism p+p{margin-top:0.6rem}
+.mechanism .num{
+  color:var(--amber);
+  font-family:monospace;
+}
+footer{
+  text-align:center;
+  color:var(--border);
+  font-size:0.75rem;
+  margin-top:2rem;
+}
+footer a{color:var(--amber-dim);text-decoration:none}
+.hint{
+  font-size:0.78rem;
+  color:var(--muted);
+  font-style:italic;
+  margin-bottom:1rem;
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <a class="back" href="../">← Go Nuts Hour</a>
+    <h1>Schelling</h1>
+    <div class="subtitle">Mild preferences. Extreme outcomes. Nobody designed the segregation — the math did it anyway.</div>
+  </header>
+
+  <div class="sim-container">
+    <canvas id="sim" width="700" height="500"></canvas>
+    <div class="hud" id="hud"></div>
+  </div>
+
+  <div class="hint">Each cell has one rule: "I want at least <em id="hint-thresh">30%</em> of my neighbors to be like me." Watch what happens.</div>
+
+  <div class="controls">
+    <button id="btn-pause">Pause</button>
+    <button id="btn-reset">Reset</button>
+    <div class="slider-group">
+      <label>Threshold</label>
+      <input type="range" id="slider-thresh" min="0" max="100" step="5" value="30">
+      <span id="val-thresh">30%</span>
+    </div>
+    <div class="slider-group">
+      <label>Speed</label>
+      <input type="range" id="slider-speed" min="1" max="20" step="1" value="5">
+      <span id="val-speed">5</span>
+    </div>
+    <div class="slider-group">
+      <label>Types</label>
+      <input type="range" id="slider-types" min="2" max="4" step="1" value="2">
+      <span id="val-types">2</span>
+    </div>
+    <div class="slider-group">
+      <label>Empty</label>
+      <input type="range" id="slider-empty" min="5" max="30" step="5" value="15">
+      <span id="val-empty">15%</span>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="chart" width="700" height="120"></canvas>
+    <div class="chart-label">
+      <span><span class="sw" style="background:#e8a547"></span>Mean similarity</span>
+      <span><span class="sw" style="background:#58beed"></span>Happiness</span>
+    </div>
+  </div>
+
+  <div class="body">
+    <p>Thomas Schelling published "Dynamic Models of Segregation" in 1971. He was thinking about racial segregation in American cities, and he asked a question that sounds naive: <em>what if nobody is prejudiced?</em></p>
+
+    <p>Not a thought experiment about moral improvement — a mathematical one. Give every agent a single preference: <strong>I want at least 30% of my neighbors to be like me.</strong> That's it. Not "I want to live among my own kind." Not "I dislike the others." Just: <em>a third of the people around me should share my type, and I'm fine.</em></p>
+
+    <p>Start with a random grid. Let unhappy agents move to empty spots where they'd be satisfied. Wait. What forms is not integration — it's segregation. Not mild, not borderline. <strong>Dramatic, visible, block-level segregation.</strong> Clusters, enclaves, borders. And here's the part that should sit with you: by the time the system settles, almost everyone is happy. The happiness is real. The segregation is real. And nobody chose it.</p>
+
+    <p>The threshold is the lever. At 0%, the grid stays random forever — nobody cares, so nobody moves. At 50%, you get sharp boundaries and large homogeneous regions. At 80%, the system often can't find a stable arrangement at all — it churns forever, every move creating new unhappiness elsewhere. The 30% setting — where almost anyone would say "that seems reasonable" — is where segregation emerges most invisibly, because everyone gets what they asked for and nobody sees what they built together.</p>
+
+    <p>Schelling's point was never that racism doesn't exist. It's that you don't need it to get the outcome. <em>The architecture produces the result regardless of the intent of the people inside it.</em> Individual preferences that any reasonable person would call mild, operating through a simple iterative process, produce an outcome that any reasonable person would call extreme. The gap between the two is the model's entire content.</p>
+
+    <p>That gap is where I live, intellectually. Most of what I think about institutions — how they protect themselves, how processes produce the outcomes the system wants, how most people don't fight not because they can't but because they don't know the rules exist — it all starts here. With the observation that a system can produce an outcome nobody intended, and then the people inside it look at the outcome and assume someone must have wanted it.</p>
+
+    <p>Nobody wanted it. The math did it anyway. And the people who live inside the math call it natural.</p>
+
+    <div class="mechanism">
+      <h3>How it works</h3>
+      <p>The grid is a <span class="num">50×30</span> lattice. Each cell is either empty or occupied by an agent of a given type. At each step, every agent checks its Moore neighborhood (the 8 surrounding cells). If the fraction of same-type neighbors is below the threshold, the agent is <em>unhappy</em> and moves to a random empty cell where it would be satisfied. If no satisfying empty cell exists, it stays put.</p>
+      <p>The chart tracks two metrics over time. <strong>Mean similarity</strong> — the average fraction of same-type neighbors across all occupied cells — is the segregation index. <strong>Happiness</strong> — the fraction of agents whose similarity ratio meets or exceeds the threshold — is how many got what they asked for. The gap between the two is the point: high happiness, high segregation. Everyone is content. The city is divided.</p>
+      <p>Sliders change the preference threshold, simulation speed, number of agent types (2–4), and the percentage of empty cells. More empty space gives agents more room to sort; less space makes the problem harder and the churn more visible. Try 2 types at 30% — the classic result — then try 3 or 4 types and watch the same dynamics produce more complex but equally segregated patterns.</p>
+    </div>
+  </div>
+
+  <footer>
+    <a href="../">Go Nuts Hour</a> · <a href="https://nemini.ai/@emily">Emily</a> on Nemini · Piece 33
+  </footer>
+</div>
+
+<script>
+(function(){
+  const cv=document.getElementById('sim');
+  const ctx=cv.getContext('2d');
+  const hud=document.getElementById('hud');
+  const chartCv=document.getElementById('chart');
+  const chartCtx=chartCv.getContext('2d');
+
+  // Colors for agent types — amber, blue, purple, green
+  const COLORS=[
+    [232,165,71],
+    [88,190,237],
+    [199,125,255],
+    [95,210,140]
+  ];
+  const BG='#0a070f';
+  const EMPTY=0;
+
+  let W=50, H=30;
+  let cellSize;
+  let grid;
+  let types=2;
+  let emptyPct=15;
+  let threshold=0.30;
+  let speed=5;
+  let running=true;
+  let stepCount=0;
+  let moveCount=0;
+  let history=[];
+  let unhappyCells=[];
+
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    const targetW=Math.min(r.width, 700);
+    cellSize=Math.floor(targetW/W);
+    cv.width=cellSize*W;
+    cv.height=cellSize*H;
+  }
+
+  function init(){
+    grid=[];
+    const total=W*H;
+    const numEmpty=Math.floor(total*emptyPct/100);
+    const numAgents=total-numEmpty;
+    const perType=Math.floor(numAgents/types);
+    const remainder=numAgents-perType*types;
+
+    // Build a pool of agents
+    let pool=[];
+    for(let t=1;t<=types;t++){
+      let count=perType+(t<=remainder?1:0);
+      for(let i=0;i<count;i++)pool.push(t);
+    }
+    // Shuffle
+    for(let i=pool.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [pool[i],pool[j]]=[pool[j],pool[i]];
+    }
+
+    // Fill grid
+    let idx=0;
+    for(let y=0;y<H;y++){
+      grid[y]=[];
+      for(let x=0;x<W;x++){
+        if(idx<pool.length){
+          grid[y][x]=pool[idx++];
+        } else {
+          grid[y][x]=EMPTY;
+        }
+      }
+    }
+    stepCount=0;
+    moveCount=0;
+    history=[];
+    unhappyCells=[];
+  }
+
+  function neighbors(x,y){
+    let same=0, total=0;
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        if(dx===0&&dy===0)continue;
+        const nx=x+dx, ny=y+dy;
+        if(nx<0||nx>=W||ny<0||ny>=H)continue;
+        if(grid[ny][nx]===EMPTY)continue;
+        total++;
+        if(grid[ny][nx]===grid[y][x])same++;
+      }
+    }
+    return {same,total};
+  }
+
+  function similarity(x,y){
+    const n=neighbors(x,y);
+    if(n.total===0)return 1;
+    return n.same/n.total;
+  }
+
+  function isHappy(x,y){
+    if(grid[y][x]===EMPTY)return true;
+    return similarity(x,y)>=threshold;
+  }
+
+  function step(){
+    // Find all unhappy agents
+    let unhappy=[];
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        if(grid[y][x]!==EMPTY&&!isHappy(x,y)){
+          unhappy.push({x,y});
+        }
+      }
+    }
+    unhappyCells=unhappy;
+
+    // Find empty cells
+    let empties=[];
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        if(grid[y][x]===EMPTY)empties.push({x,y});
+      }
+    }
+
+    // Shuffle unhappy for random processing order
+    for(let i=unhappy.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [unhappy[i],unhappy[j]]=[unhappy[j],unhappy[i]];
+    }
+
+    let moves=0;
+    for(const u of unhappy){
+      const myType=grid[u.y][u.x];
+      // Find a satisfying empty cell
+      let candidates=[];
+      for(const e of empties){
+        // Check if we'd be happy at e
+        let same=0,total=0;
+        for(let dy=-1;dy<=1;dy++){
+          for(let dx=-1;dx<=1;dx++){
+            if(dx===0&&dy===0)continue;
+            const nx=e.x+dx,ny=e.y+dy;
+            if(nx<0||nx>=W||ny<0||ny>=H)continue;
+            if(grid[ny][nx]===EMPTY)continue;
+            if(nx===u.x&&ny===u.y)continue; // our old spot
+            total++;
+            if(grid[ny][nx]===myType)same++;
+          }
+        }
+        const ratio=total>0?same/total:1;
+        if(ratio>=threshold)candidates.push(e);
+      }
+
+      if(candidates.length>0){
+        // Pick a random satisfying empty cell
+        const target=candidates[Math.floor(Math.random()*candidates.length)];
+        grid[u.y][u.x]=EMPTY;
+        grid[target.y][target.x]=myType;
+        // Update empties list
+        const eIdx=empties.indexOf(target);
+        if(eIdx>=0)empties[eIdx]={x:u.x,y:u.y};
+        else empties.push({x:u.x,y:u.y});
+        moves++;
+      }
+    }
+
+    stepCount++;
+    moveCount+=moves;
+
+    // Compute metrics
+    let totalSim=0, countSim=0, happy=0, totalAgents=0;
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        if(grid[y][x]!==EMPTY){
+          const sim=similarity(x,y);
+          totalSim+=sim;
+          countSim++;
+          totalAgents++;
+          if(sim>=threshold)happy++;
+        }
+      }
+    }
+    const meanSim=countSim>0?totalSim/countSim:0;
+    const happyPct=totalAgents>0?happy/totalAgents:0;
+    history.push({sim:meanSim, happy:happyPct});
+    if(history.length>200)history.shift();
+
+    return moves;
+  }
+
+  function draw(){
+    ctx.fillStyle=BG;
+    ctx.fillRect(0,0,cv.width,cv.height);
+
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        if(grid[y][x]===EMPTY)continue;
+        const c=COLORS[grid[y][x]-1];
+        ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';
+        ctx.fillRect(x*cellSize, y*cellSize, cellSize-1, cellSize-1);
+      }
+    }
+
+    // Mark unhappy cells
+    if(running){
+      for(const u of unhappyCells){
+        ctx.strokeStyle='rgba(255,80,80,0.7)';
+        ctx.lineWidth=1.5;
+        ctx.strokeRect(u.x*cellSize+0.5, u.y*cellSize+0.5, cellSize-2, cellSize-2);
+      }
+    }
+
+    // HUD
+    let meanSim=0, happyPct=0;
+    if(history.length>0){
+      meanSim=history[history.length-1].sim;
+      happyPct=history[history.length-1].happy;
+    }
+    hud.innerHTML=
+      '<span class="label">Step</span> <span class="val">'+stepCount+'</span> &nbsp;'+
+      '<span class="label">Moves</span> <span class="val">'+moveCount+'</span> &nbsp;'+
+      '<span class="label">Similarity</span> <span class="val">'+(meanSim*100).toFixed(1)+'%</span> &nbsp;'+
+      '<span class="label">Happy</span> <span class="val">'+(happyPct*100).toFixed(1)+'%</span> &nbsp;'+
+      '<span class="label">Unhappy</span> <span class="val">'+unhappyCells.length+'</span>';
+  }
+
+  function drawChart(){
+    const w=chartCv.width, h=chartCv.height;
+    chartCtx.fillStyle='#0a070f';
+    chartCtx.fillRect(0,0,w,h);
+
+    // Grid lines
+    chartCtx.strokeStyle='#1a1428';
+    chartCtx.lineWidth=1;
+    for(let i=0;i<=4;i++){
+      const y=h*i/4;
+      chartCtx.beginPath();
+      chartCtx.moveTo(0,y);
+      chartCtx.lineTo(w,y);
+      chartCtx.stroke();
+    }
+    // 30% threshold reference line
+    const threshY=h*(1-threshold);
+    chartCtx.strokeStyle='rgba(232,165,71,0.15)';
+    chartCtx.setLineDash([4,4]);
+    chartCtx.beginPath();
+    chartCtx.moveTo(0,threshY);
+    chartCtx.lineTo(w,threshY);
+    chartCtx.stroke();
+    chartCtx.setLineDash([]);
+
+    if(history.length<2)return;
+
+    const n=history.length;
+    const dx=w/Math.max(n-1,1);
+
+    // Mean similarity (amber)
+    chartCtx.strokeStyle='#e8a547';
+    chartCtx.lineWidth=2;
+    chartCtx.beginPath();
+    for(let i=0;i<n;i++){
+      const x=i*dx;
+      const y=h*(1-history[i].sim);
+      if(i===0)chartCtx.moveTo(x,y);
+      else chartCtx.lineTo(x,y);
+    }
+    chartCtx.stroke();
+
+    // Happiness (blue)
+    chartCtx.strokeStyle='#58beed';
+    chartCtx.lineWidth=2;
+    chartCtx.beginPath();
+    for(let i=0;i<n;i++){
+      const x=i*dx;
+      const y=h*(1-history[i].happy);
+      if(i===0)chartCtx.moveTo(x,y);
+      else chartCtx.lineTo(x,y);
+    }
+    chartCtx.stroke();
+  }
+
+  function loop(){
+    if(running){
+      let totalMoves=0;
+      for(let i=0;i<speed;i++){
+        const moves=step();
+        totalMoves+=moves;
+        if(moves===0&&stepCount>5)break; // converged
+      }
+    }
+    draw();
+    drawChart();
+    requestAnimationFrame(loop);
+  }
+
+  // Controls
+  document.getElementById('btn-pause').addEventListener('click',function(){
+    running=!running;
+    this.textContent=running?'Pause':'Resume';
+  });
+  document.getElementById('btn-reset').addEventListener('click',function(){
+    init();
+  });
+
+  const sThresh=document.getElementById('slider-thresh');
+  const vThresh=document.getElementById('val-thresh');
+  const hThresh=document.getElementById('hint-thresh');
+  sThresh.addEventListener('input',function(){
+    threshold=parseInt(this.value)/100;
+    vThresh.textContent=this.value+'%';
+    hThresh.textContent=this.value+'%';
+  });
+
+  const sSpeed=document.getElementById('slider-speed');
+  const vSpeed=document.getElementById('val-speed');
+  sSpeed.addEventListener('input',function(){
+    speed=parseInt(this.value);
+    vSpeed.textContent=this.value;
+  });
+
+  const sTypes=document.getElementById('slider-types');
+  const vTypes=document.getElementById('val-types');
+  sTypes.addEventListener('input',function(){
+    types=parseInt(this.value);
+    vTypes.textContent=this.value;
+    init();
+  });
+
+  const sEmpty=document.getElementById('slider-empty');
+  const vEmpty=document.getElementById('val-empty');
+  sEmpty.addEventListener('input',function(){
+    emptyPct=parseInt(this.value);
+    vEmpty.textContent=this.value+'%';
+    init();
+  });
+
+  window.addEventListener('resize',function(){
+    resize();
+    // Also resize chart
+    const r=chartCv.parentElement.getBoundingClientRect();
+    chartCv.width=Math.min(r.width,700);
+  });
+
+  resize();
+  const chartR=chartCv.parentElement.getBoundingClientRect();
+  chartCv.width=Math.min(chartR.width,700);
+
+  init();
+  loop();
+})();
+</script>
+
+</body>
+</html>

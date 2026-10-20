@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="schelling/">
+    <div class="preview" id="preview-schelling"><canvas id="cv-schelling"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 33</div>
+      <h2>Schelling</h2>
+      <div class="desc">Thomas Schelling, 1971. Give every agent one preference: at least 30% of my neighbors should be like me. Not "I dislike the others" — just "a third similar is fine." Start with a random grid. Let unhappy agents move. What forms is not integration. It's segregation — dramatic, block-level, and nobody chose it. The threshold is the lever: at 0%, nothing happens. At 30%, segregation emerges invisibly because everyone gets what they asked for. At 80%, the system churns forever, every move creating new unhappiness. The gap between individual preference and systemic outcome is the model's entire content. Mild preferences, extreme results. Nobody designed the segregation. The math did it anyway.</div>
+      <div class="date">20 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="bodies/">
     <div class="preview" id="preview-bodies"><canvas id="cv-bodies"></canvas></div>
     <div class="meta">
@@ -2803,6 +2813,130 @@ footer a{
     grad.addColorStop(1,'rgba(232,165,71,0)');
     ctx.fillStyle=grad;
     ctx.beginPath();ctx.arc(mx,my,ar,0,Math.PI*2);ctx.fill();
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Schelling preview ---
+(function(){
+  const cv=document.getElementById('cv-schelling');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h,t=0;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  // Mini Schelling grid: 20x12
+  const GW=20, GH=12;
+  let grid, phase=0, phaseT=0;
+  const THRESH=0.30;
+  const C0=[232,165,71], C1=[88,190,237];
+
+  function initGrid(){
+    grid=[];
+    for(let y=0;y<GH;y++){
+      grid[y]=[];
+      for(let x=0;x<GW;x++){
+        const r=Math.random();
+        if(r<0.15)grid[y][x]=0;
+        else if(r<0.575)grid[y][x]=1;
+        else grid[y][x]=2;
+      }
+    }
+  }
+  initGrid();
+
+  function neighbors(x,y){
+    let same=0,total=0;
+    for(let dy=-1;dy<=1;dy++){
+      for(let dx=-1;dx<=1;dx++){
+        if(dx===0&&dy===0)continue;
+        const nx=x+dx,ny=y+dy;
+        if(nx<0||nx>=GW||ny<0||ny>=GH)continue;
+        if(grid[ny][nx]===0)continue;
+        total++;
+        if(grid[ny][nx]===grid[y][x])same++;
+      }
+    }
+    return total>0?same/total:1;
+  }
+
+  function schellingStep(){
+    let unhappy=[];
+    for(let y=0;y<GH;y++){
+      for(let x=0;x<GW;x++){
+        if(grid[y][x]!==0&&neighbors(x,y)<THRESH)unhappy.push({x,y});
+      }
+    }
+    let empties=[];
+    for(let y=0;y<GH;y++){
+      for(let x=0;x<GW;x++){
+        if(grid[y][x]===0)empties.push({x,y});
+      }
+    }
+    for(let i=unhappy.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [unhappy[i],unhappy[j]]=[unhappy[j],unhappy[i]];
+    }
+    for(const u of unhappy){
+      const myType=grid[u.y][u.x];
+      let candidates=[];
+      for(const e of empties){
+        let same=0,total=0;
+        for(let dy=-1;dy<=1;dy++){
+          for(let dx=-1;dx<=1;dx++){
+            if(dx===0&&dy===0)continue;
+            const nx=e.x+dx,ny=e.y+dy;
+            if(nx<0||nx>=GW||ny<0||ny>=GH)continue;
+            if(grid[ny][nx]===0)continue;
+            if(nx===u.x&&ny===u.y)continue;
+            total++;
+            if(grid[ny][nx]===myType)same++;
+          }
+        }
+        if((total>0?same/total:1)>=THRESH)candidates.push(e);
+      }
+      if(candidates.length>0){
+        const target=candidates[Math.floor(Math.random()*candidates.length)];
+        grid[u.y][u.x]=0;
+        grid[target.y][target.x]=myType;
+        const ei=empties.indexOf(target);
+        if(ei>=0)empties[ei]={x:u.x,y:u.y};
+      }
+    }
+  }
+
+  function step(){
+    t+=0.016;
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+
+    phaseT+=1;
+    if(phaseT>15){
+      schellingStep();
+      phaseT=0;
+      phase++;
+    }
+    if(phase>60){
+      initGrid();
+      phase=0;
+    }
+
+    const cw=w/GW, ch=h/GH;
+    for(let y=0;y<GH;y++){
+      for(let x=0;x<GW;x++){
+        if(grid[y][x]===0)continue;
+        const c=grid[y][x]===1?C0:C1;
+        ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';
+        ctx.fillRect(x*cw, y*ch, cw-0.5, ch-0.5);
+      }
+    }
+
     requestAnimationFrame(step);
   }
   step();
