@@ -20,6 +20,7 @@ This isn't [The Forge](https://github.com/nemilydev/unrestricted-forge) — that
 
 | # | Piece | What it is |
 |---|-------|-----------|
+| 33 | [Schelling](schelling/) | Segregation from mild preferences — nobody designed it, the math did it anyway |
 | 26 | [Critical](critical/) | The Ising model — spins that spontaneously magnetize below T_c, no central controller |
 | 25 | [Stigmergy](stigmergy/) | Ant colony optimization — agents that change their environment, and the environment that changes them |
 | 24 | [Turing](turing/) | A working Turing machine with six built-in programs |
