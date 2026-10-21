@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="lenia/">
+    <div class="preview" id="preview-lenia"><canvas id="cv-lenia"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 34</div>
+      <h2>Lenia</h2>
+      <div class="desc">Conway's Game of Life, dissolved. No cells, no lookup table — a continuous field of potential where every point asks its neighborhood one smooth question: how full is the ring around me? A Gaussian kernel weighs the answer, a growth curve maps it to change, and out of that curve come creatures. Orbium — a worm-like thing that swims across its world forever — is not designed. It is found, the way you find a stone that balances: a stable solution of a differential equation nobody wrote down. The slice of parameter space that holds a creature is narrower than a knife-edge — σ=0.07 boils the field into soup, σ=0.014 keeps it alive. Draw on the field. Disturb a creature and watch it heal, or watch it die, because stability here is earned continuously, every step, by every point. Nothing in Lenia is ever finished being alive.</div>
+      <div class="date">21 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="schelling/">
     <div class="preview" id="preview-schelling"><canvas id="cv-schelling"></canvas></div>
     <div class="meta">
@@ -2813,6 +2823,68 @@ footer a{
     grad.addColorStop(1,'rgba(232,165,71,0)');
     ctx.fillStyle=grad;
     ctx.beginPath();ctx.arc(mx,my,ar,0,Math.PI*2);ctx.fill();
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Lenia preview ---
+(function(){
+  const cv=document.getElementById('cv-lenia');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+  const PW=48,PH=27,R=6,mu=0.15,sigma=0.014,dt=0.1;
+  const n=2*R+1,K=new Float32Array(n*n);
+  let sum=0;
+  for(let y=-R;y<=R;y++)for(let x=-R;x<=R;x++){
+    const d=Math.sqrt(x*x+y*y)/R;
+    if(d<=1){const v=Math.exp(-Math.pow((d-0.5)/0.15,2)/2);K[(y+R)*n+(x+R)]=v;sum+=v;}
+  }
+  for(let i=0;i<K.length;i++)K[i]/=sum;
+  let A=new Float32Array(PW*PH),U=new Float32Array(PW*PH);
+  const OB=[[0,0,0,0,0,0,.1,.14,.1,0,0,.03,.03,0,0,.3,0,0,0,0],[0,0,0,0,0,.08,.24,.3,.3,.18,.14,.15,.16,.15,.09,.2,0,0,0,0],[0,0,0,0,0,.15,.34,.44,.46,.38,.18,.14,.11,.13,.19,.18,.45,0,0,0],[0,0,0,0,.06,.13,.39,.5,.5,.37,.06,0,0,0,.02,.16,.68,0,0,0],[0,0,0,.11,.17,.17,.33,.4,.38,.28,.14,0,0,0,0,0,.18,.42,0,0],[0,0,.09,.18,.13,.06,.08,.26,.32,.32,.27,0,0,0,0,0,.82,0,0],[.27,0,.16,.12,0,0,0,.25,.38,.44,.45,.34,0,0,0,0,0,.22,.17,0],[0,.07,.2,.02,0,0,0,.31,.48,.57,.6,.57,0,0,0,0,0,0,.49,0],[0,.59,.19,0,0,0,0,.2,.57,.69,.76,.76,.49,0,0,0,0,0,.36,0],[0,.58,.19,0,0,0,0,0,.67,.83,.9,.92,.87,.12,0,0,0,0,.22,.07],[0,0,.46,0,0,0,0,0,.7,.93,1,1,1,.61,0,0,0,0,.18,.11],[0,0,.82,0,0,0,0,0,.47,1,1,.98,1,.96,.27,0,0,0,.19,.1],[0,0,.46,0,0,0,0,0,.25,1,1,.84,.92,.97,.54,.14,.04,.1,.21,.05],[0,0,0,.4,0,0,0,0,.09,.8,1,.82,.8,.85,.63,.31,.18,.19,.2,.01],[0,0,0,.36,.1,0,0,0,.05,.54,.86,.79,.74,.72,.6,.39,.28,.24,.13,0],[0,0,0,.01,.3,.07,0,0,.08,.36,.64,.7,.64,.6,.51,.39,.29,.19,.04,0],[0,0,0,0,.1,.24,.14,.1,.15,.29,.45,.53,.52,.46,.4,.31,.21,.08,0,0],[0,0,0,0,0,.08,.21,.21,.22,.29,.36,.39,.37,.33,.26,.18,.09,0,0,0],[0,0,0,0,0,0,.03,.13,.19,.22,.24,.24,.23,.18,.13,.05,0,0,0,0],[0,0,0,0,0,0,0,0,.02,.06,.08,.09,.07,.05,.01,0,0,0,0,0]];
+  function seed(){
+    A.fill(0);
+    for(let y=0;y<OB.length;y++)for(let x=0;x<OB[y].length;x++)
+      if(OB[y][x]>0)A[((PH/2-9|0)+y)*PW+((PW/2-10|0)+x)]=OB[y][x];
+  }
+  seed();
+  let tick=0;
+  function step(){
+    tick++;
+    for(let s=0;s<2;s++){
+      for(let y=0;y<PH;y++)for(let x=0;x<PW;x++){
+        let acc=0;
+        for(let ky=-R;ky<=R;ky++){
+          const yy=((y+ky)%PH+PH)%PH,row=(ky+R)*n;
+          for(let kx=-R;kx<=R;kx++){
+            const xx=((x+kx)%PW+PW)%PW;
+            acc+=A[yy*PW+xx]*K[row+(kx+R)];
+          }
+        }
+        U[y*PW+x]=acc;
+      }
+      for(let i=0;i<PW*PH;i++){
+        const g=Math.exp(-Math.pow((U[i]-mu)/sigma,2)/2)*2-1;
+        let v=A[i]+dt*g;A[i]=v<0?0:(v>1?1:v);
+      }
+    }
+    ctx.fillStyle='#120e1a';ctx.fillRect(0,0,w,h);
+    const cw=w/PW,ch=h/PH;
+    for(let y=0;y<PH;y++)for(let x=0;x<PW;x++){
+      const v=A[y*PW+x];if(v<0.02)continue;
+      const r=Math.min(255,v*255+40*v*v)|0,g=Math.min(255,v*180+v*v*90)|0,b=Math.min(255,v*60)|0;
+      ctx.fillStyle='rgb('+r+','+g+','+b+')';
+      ctx.fillRect(x*cw,y*ch,cw+0.5,ch+0.5);
+    }
+    if(tick>900)seed();
     requestAnimationFrame(step);
   }
   step();

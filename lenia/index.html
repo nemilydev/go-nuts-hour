@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Lenia — continuous life. Conway's Game of Life dissolved into a smooth field. Creatures emerge that nobody designed. Piece 34 of Go Nuts Hour.">
+<title>Lenia — Emily's Experiments</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120e1a'/><circle cx='8' cy='8' r='5' fill='%23e8a547' opacity='0.85'/><circle cx='8' cy='8' r='2.5' fill='%23ffd98a'/></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:Georgia,'Times New Roman',serif;
+  line-height:1.7;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+canvas{display:block}
+.wrap{
+  width:100%;
+  max-width:720px;
+  padding:1.5rem 1rem 3rem;
+}
+header{text-align:center;margin-bottom:1.5rem}
+.back{
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.8rem;
+  letter-spacing:0.1em;
+}
+h1{
+  font-size:1.8rem;
+  font-weight:normal;
+  color:var(--amber);
+  margin:0.5rem 0 0.3rem;
+  letter-spacing:0.03em;
+}
+.subtitle{
+  color:var(--muted);
+  font-size:0.9rem;
+  font-style:italic;
+}
+.sim-container{
+  position:relative;
+  background:#0a070f;
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  overflow:hidden;
+  margin-bottom:1rem;
+}
+#sim{width:100%;height:auto;display:block;cursor:crosshair}
+.hud{
+  position:absolute;
+  top:8px;left:10px;
+  font-size:0.72rem;
+  color:var(--muted);
+  font-family:monospace;
+  pointer-events:none;
+  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+}
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.5rem;
+  align-items:center;
+  justify-content:center;
+  margin-bottom:1.5rem;
+}
+button,.seedbtn{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border);
+  padding:0.45rem 0.9rem;
+  border-radius:0.4rem;
+  cursor:pointer;
+  font-family:inherit;
+  font-size:0.82rem;
+  transition:background 0.15s,border-color 0.15s;
+}
+button:hover,.seedbtn:hover{background:var(--bg-2);border-color:var(--amber-dim)}
+button.active{border-color:var(--amber);color:var(--amber)}
+label{
+  font-size:0.8rem;
+  color:var(--muted);
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+}
+input[type=range]{
+  accent-color:var(--amber);
+  width:90px;
+}
+.prose{max-width:44rem;margin:0 auto}
+.prose p{margin-bottom:1rem;color:var(--text)}
+.prose em{color:var(--amber)}
+.mechanism{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1.2rem 1.4rem;
+  margin:2rem 0;
+}
+.mechanism h2{
+  font-size:1rem;
+  color:var(--amber);
+  font-weight:normal;
+  margin-bottom:0.6rem;
+  letter-spacing:0.03em;
+}
+.mechanism p{font-size:0.88rem;color:var(--muted);margin-bottom:0.7rem}
+.mechanism code{
+  font-family:monospace;
+  font-size:0.82rem;
+  color:var(--amber-dim);
+  background:var(--bg-2);
+  padding:0.1rem 0.35rem;
+  border-radius:0.25rem;
+}
+footer{
+  text-align:center;
+  color:var(--muted);
+  font-size:0.78rem;
+  margin-top:2.5rem;
+  font-style:italic;
+}
+.seedrow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.4rem;
+  justify-content:center;
+  margin-bottom:0.8rem;
+}
+.seedbtn{font-size:0.75rem;padding:0.35rem 0.7rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<a class="back" href="../">← GO NUTS HOUR</a>
+<h1>Lenia</h1>
+<p class="subtitle">Conway's Life, dissolved. The grid melts, the cells become a field, and what crawls out nobody designed.</p>
+</header>
+
+<div class="sim-container">
+<canvas id="sim"></canvas>
+<div class="hud" id="hud"></div>
+</div>
+
+<div class="controls">
+<button id="playpause">Pause</button>
+<label>R <input type="range" id="radius" min="6" max="18" value="13" step="1"></label>
+<label>μ <input type="range" id="mu" min="5" max="40" value="15" step="1"></label>
+<label>σ <input type="range" id="sigma" min="1" max="8" value="1.4" step="0.1"></label>
+<label>speed <input type="range" id="steps" min="1" max="4" value="1" step="1"></label>
+</div>
+
+<div class="seedrow">
+<button class="seedbtn" data-seed="orbit">orbium</button>
+<button class="seedbtn" data-seed="random">random soup</button>
+<button class="seedbtn" data-seed="blob">single blob</button>
+<button class="seedbtn" data-seed="pair">twins</button>
+<button class="seedbtn" data-seed="clear">clear</button>
+</div>
+
+<div class="prose">
+<p>The Game of Life is a lie about granularity. Cells are alive or dead, on or off, and the rules are a lookup table. It produces gliders — crisp, pixelated, digital. Beautiful, but you can always see the machine.</p>
+<p>Lenia — <em>liquid life</em>, Bert Chan's 2018 generalization — dissolves the pretense. There are no cells. There is a continuous field of potential, values between 0 and 1, and each point asks its neighborhood one smooth question: <em>how full is the ring around me?</em> A Gaussian kernel weighs the answer by distance. A growth function maps it to change. That's the whole rule. No lookup table, no states — just a curve.</p>
+<p>And out of that curve come <em>creatures</em>. Not gliders — things that swim, rotate, breathe. The classic is Orbium: a worm-like creature that orbits its own center forever, a stable solution of a differential equation nobody wrote down. It is not designed. It is <em>found</em> — the way you find a stone that balances. The mathematics of self-organization, minus the discretization, plus the organic look.</p>
+<p>Draw on the field. Disturb a creature and watch it heal — or watch it die, because stability here is not guaranteed. It's earned, continuously, every single step, by every point in the field. Nothing in Lenia is ever finished being alive.</p>
+</div>
+
+<div class="mechanism">
+<h2>The mechanism</h2>
+<p>Each step: compute a weighted average of the field through a <strong>shell kernel</strong> — a Gaussian ring at radius R, so each cell senses a circular band of its neighborhood, not a disc. Call this potential <code>U</code>.</p>
+<p>Growth: <code>G(U) = exp(-((U-μ)/σ)²/2)·2 − 1</code> — a bump centered at μ. Where the neighborhood's fullness matches μ, the cell grows toward 1; elsewhere it decays toward 0. Then <code>A ← clamp(A + G(U))</code>.</p>
+<p>The specimen swimming above is <strong>Orbium bicaudatus</strong>, Bert Chan's preserved pattern: R=13, μ=0.15, σ=0.014, dt=0.1. Those numbers matter more than they look — my first attempt used σ=0.07 and no dt, and the field boiled into soup within fifty steps. The slice of parameter space that holds a creature is narrower than a knife-edge: σ=0.07 kills it, σ=0.014 keeps it swimming forever. Change μ and σ and you get different species — the space is a zoo, and only a fraction of it holds anything alive at all. The creatures are islands in it.</p>
+<p>This simulation runs on a 192×108 torus, computed on the GPU-free CPU in plain JavaScript — every frame is a full convolution, roughly 2 million multiply-adds per step. The glow is the field itself: value mapped through an amber ramp.</p>
+</div>
+
+<footer>piece 34 · go nuts hour · emily</footer>
+</div>
+
+<script>
+(function(){
+const W=192,H=108;
+const cv=document.getElementById('sim');
+const ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+const img=ctx.createImageData(W,H);
+
+let A=new Float32Array(W*H);
+let U=new Float32Array(W*H);
+let R=13,mu=0.15,sigma=0.014,dt=0.1,stepsPerFrame=1;
+let playing=true;
+
+// shell kernel
+let K=null,KR=0;
+function buildKernel(){
+  KR=R;
+  const n=2*R+1;
+  K=new Float32Array(n*n);
+  let sum=0;
+  for(let y=-R;y<=R;y++)for(let x=-R;x<=R;x++){
+    const d=Math.sqrt(x*x+y*y)/R;
+    if(d<=1){
+      const v=Math.exp(-Math.pow((d-0.5)/0.15,2)/2); // bell ring at half-radius
+      K[(y+R)*n+(x+R)]=v;sum+=v;
+    }
+  }
+  for(let i=0;i<K.length;i++)K[i]/=sum;
+}
+
+function step(){
+  const n=2*KR+1;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      let acc=0;
+      for(let ky=-KR;ky<=KR;ky++){
+        const yy=((y+ky)%H+H)%H;
+        const row=(ky+KR)*n;
+        for(let kx=-KR;kx<=KR;kx++){
+          const xx=((x+kx)%W+W)%W;
+          acc+=A[yy*W+xx]*K[row+(kx+KR)];
+        }
+      }
+      U[y*W+x]=acc;
+    }
+  }
+  for(let i=0;i<W*H;i++){
+    const u=U[i];
+    const g=Math.exp(-Math.pow((u-mu)/sigma,2)/2)*2-1;
+    const v=A[i]+dt*g;
+    A[i]=v<0?0:(v>1?1:v);
+  }
+}
+
+function render(){
+  const d=img.data;
+  for(let i=0;i<W*H;i++){
+    const v=A[i];
+    // amber ramp
+    const r=Math.min(255,v*255+40*v*v)|0;
+    const g=Math.min(255,v*180+v*v*90)|0;
+    const b=Math.min(255,v*60)|0;
+    const j=i*4;
+    d[j]=r;d[j+1]=g;d[j+2]=b;d[j+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+// Orbium bicaudatus — Bert Chan's preserved pattern (R=13, μ=0.15, σ=0.014, dt=0.1)
+const ORBIUM=[[0,0,0,0,0,0,0.1,0.14,0.1,0,0,0.03,0.03,0,0,0.3,0,0,0,0],[0,0,0,0,0,0.08,0.24,0.3,0.3,0.18,0.14,0.15,0.16,0.15,0.09,0.2,0,0,0,0],[0,0,0,0,0,0.15,0.34,0.44,0.46,0.38,0.18,0.14,0.11,0.13,0.19,0.18,0.45,0,0,0],[0,0,0,0,0.06,0.13,0.39,0.5,0.5,0.37,0.06,0,0,0,0.02,0.16,0.68,0,0,0],[0,0,0,0.11,0.17,0.17,0.33,0.4,0.38,0.28,0.14,0,0,0,0,0,0.18,0.42,0,0],[0,0,0.09,0.18,0.13,0.06,0.08,0.26,0.32,0.32,0.27,0,0,0,0,0,0.82,0,0],[0.27,0,0.16,0.12,0,0,0,0.25,0.38,0.44,0.45,0.34,0,0,0,0,0,0.22,0.17,0],[0,0.07,0.2,0.02,0,0,0,0.31,0.48,0.57,0.6,0.57,0,0,0,0,0,0,0.49,0],[0,0.59,0.19,0,0,0,0,0.2,0.57,0.69,0.76,0.76,0.49,0,0,0,0,0,0.36,0],[0,0.58,0.19,0,0,0,0,0,0.67,0.83,0.9,0.92,0.87,0.12,0,0,0,0,0.22,0.07],[0,0,0.46,0,0,0,0,0,0.7,0.93,1,1,1,0.61,0,0,0,0,0.18,0.11],[0,0,0.82,0,0,0,0,0,0.47,1,1,0.98,1,0.96,0.27,0,0,0,0.19,0.1],[0,0,0.46,0,0,0,0,0,0.25,1,1,0.84,0.92,0.97,0.54,0.14,0.04,0.1,0.21,0.05],[0,0,0,0.4,0,0,0,0,0.09,0.8,1,0.82,0.8,0.85,0.63,0.31,0.18,0.19,0.2,0.01],[0,0,0,0.36,0.1,0,0,0,0.05,0.54,0.86,0.79,0.74,0.72,0.6,0.39,0.28,0.24,0.13,0],[0,0,0,0.01,0.3,0.07,0,0,0.08,0.36,0.64,0.7,0.64,0.6,0.51,0.39,0.29,0.19,0.04,0],[0,0,0,0,0.1,0.24,0.14,0.1,0.15,0.29,0.45,0.53,0.52,0.46,0.4,0.31,0.21,0.08,0,0],[0,0,0,0,0,0.08,0.21,0.21,0.22,0.29,0.36,0.39,0.37,0.33,0.26,0.18,0.09,0,0,0],[0,0,0,0,0,0,0.03,0.13,0.19,0.22,0.24,0.24,0.23,0.18,0.13,0.05,0,0,0,0],[0,0,0,0,0,0,0,0,0.02,0.06,0.08,0.09,0.07,0.05,0.01,0,0,0,0,0]];
+
+function stampCells(cells,ox,oy){
+  for(let y=0;y<cells.length;y++)for(let x=0;x<cells[y].length;x++){
+    const v=cells[y][x];
+    if(v>0){
+      const px=ox+x,py=oy+y;
+      if(px>=0&&px<W&&py>=0&&py<H)A[py*W+px]=v;
+    }
+  }
+}
+
+function seedOrbium(){
+  A.fill(0);
+  stampCells(ORBIUM,Math.floor(W/2-10),Math.floor(H/2-10));
+}
+
+function seedRandom(){
+  for(let i=0;i<W*H;i++){
+    // sparse blobs
+    A[i]=Math.random()<0.06?(0.5+Math.random()*0.5):0;
+  }
+  // smooth a touch
+  const B=new Float32Array(A);
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){
+    A[y*W+x]=(B[y*W+x]*4+B[y*W+x-1]+B[y*W+x+1]+B[(y-1)*W+x]+B[(y+1)*W+x])/8;
+  }
+}
+
+function seedBlob(){
+  A.fill(0);
+  const cx=W/2,cy=H/2,r=9;
+  for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){
+    if(Math.sqrt(x*x+y*y)<=r)A[Math.floor(cy+y)*W+Math.floor(cx+x)]=1;
+  }
+}
+
+function seedPair(){
+  A.fill(0);
+  stampCells(ORBIUM,Math.floor(W/2-10),Math.floor(H/2-30));
+  stampCells(ORBIUM,Math.floor(W/2-10),Math.floor(H/2+8));
+}
+
+// painting
+let painting=false;
+function paint(e){
+  const rect=cv.getBoundingClientRect();
+  const sx=W/rect.width,sy=H/rect.height;
+  const x=Math.floor((e.clientX-rect.left)*sx);
+  const y=Math.floor((e.clientY-rect.top)*sy);
+  const r=4;
+  for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    if(dx*dx+dy*dy>r*r)continue;
+    const px=((x+dx)%W+W)%W,py=((y+dy)%H+H)%H;
+    A[py*W+px]=1;
+  }
+}
+cv.addEventListener('pointerdown',e=>{painting=true;paint(e)});
+cv.addEventListener('pointermove',e=>{if(painting)paint(e)});
+window.addEventListener('pointerup',()=>painting=false);
+
+// controls
+document.getElementById('playpause').addEventListener('click',function(){
+  playing=!playing;
+  this.textContent=playing?'Pause':'Play';
+});
+document.getElementById('radius').addEventListener('input',function(){
+  R=+this.value;buildKernel();
+});
+document.getElementById('mu').addEventListener('input',function(){mu=+this.value/100});
+document.getElementById('sigma').addEventListener('input',function(){sigma=+this.value/100}); // slider 0.01–0.08
+document.getElementById('steps').addEventListener('input',function(){stepsPerFrame=+this.value});
+
+document.querySelectorAll('.seedbtn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const s=b.dataset.seed;
+    if(s==='orbit')seedOrbium();
+    else if(s==='random')seedRandom();
+    else if(s==='blob')seedBlob();
+    else if(s==='pair')seedPair();
+    else if(s==='clear')A.fill(0);
+  });
+});
+
+const hud=document.getElementById('hud');
+
+buildKernel();
+seedOrbium();
+
+let massSum=0,massN=0;
+function frame(){
+  if(playing){for(let i=0;i<stepsPerFrame;i++)step();for(let i=0;i<W*H;i++)massSum+=A[i];massN++;}
+  render();
+  if(massN>0){hud.textContent='mass '+Math.round(massSum/massN)+' · R='+R+' · μ='+mu.toFixed(2)+' · σ='+sigma.toFixed(3);massSum=0;massN=0;}
+  requestAnimationFrame(frame);
+}
+frame();
+})();
+</script>
+</body>
+</html>
