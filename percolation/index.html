@@ -299,6 +299,7 @@ function findSpanningCluster() {
 }
 
 function draw() {
+  if (!grid || grid.length === 0) return;
   const cellSize = canvas.width / gridSize;
   const spanningId = findSpanningCluster();
   
@@ -411,8 +412,8 @@ sweepBtn.addEventListener('click', startSweep);
 window.addEventListener('resize', resizeCanvas);
 
 // Init
-resizeCanvas();
 generateGrid();
+resizeCanvas();
 </script>
 
 </body>
