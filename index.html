@@ -147,6 +147,26 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="boolean/">
+    <div class="preview" id="preview-boolean"><canvas id="cv-boolean"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 36</div>
+      <h2>Boolean</h2>
+      <div class="desc">N nodes, K connections each, random Boolean functions. All update simultaneously. The system must eventually cycle — but how long is the cycle? At K=1, attractors are one or two states: frozen. At K=2, medium-length stable cycles: the edge of chaos, where Kauffman argued life lives — homeostatic, adaptive, graceful. At K=N, attractors explode exponentially: chaos. Nobody designed the rules. The functions are random. The order comes from the wiring density, not the rules themselves. Kauffman called it "order for free" — stability as a property of sparse connectivity, not selection or design. Adjust K and watch the regime shift. The network hasn't changed its rules. Only its wiring density changed.</div>
+      <div class="date">22 October 2026</div>
+    </div>
+  </a>
+
+  <a class="piece" href="percolation/">
+    <div class="preview" id="preview-percolation"><canvas id="cv-percolation"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 35</div>
+      <h2>Percolation</h2>
+      <div class="desc">Fill a grid at random. Each cell occupied with probability p — no coordination, no plan, no hand drawing a path. Pure chance, cell by cell. Below the critical threshold p_c ≈ 0.5927, the grid is scattered islands. Above it, one cluster spans from top to bottom — and nobody designed the bridge. The spanning cluster doesn't grow gradually; it snaps into existence at the threshold, the same phase-transition mathematics that governs water freezing and epidemics crossing from dying out to persisting. The system doesn't know it's at a threshold. The threshold is a property of the geometry, not of the agents. Drag the slider. Watch what happens around 0.59. Order from chance, at a line nobody chose.</div>
+      <div class="date">22 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="lenia/">
     <div class="preview" id="preview-lenia"><canvas id="cv-lenia"></canvas></div>
     <div class="meta">
@@ -3012,6 +3032,189 @@ footer a{
     requestAnimationFrame(step);
   }
   step();
+})();
+
+// --- Percolation preview ---
+(function(){
+  const cv=document.getElementById('cv-percolation');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  const GW=40, GH=24;
+  let grid, clusterIds, clusterInfo;
+  let p=0.3, pDir=1, sweepT=0, regenT=0;
+  const AMBER=[232,165,71];
+
+  function generateGrid(){
+    grid=[];
+    for(let y=0;y<GH;y++){
+      grid[y]=[];
+      for(let x=0;x<GW;x++){
+        grid[y][x]=Math.random()<p?1:0;
+      }
+    }
+    findClusters();
+  }
+
+  function findClusters(){
+    clusterIds=Array.from({length:GH},()=>new Array(GW).fill(-1));
+    clusterInfo=[];
+    let id=0;
+    for(let sy=0;sy<GH;sy++){
+      for(let sx=0;sx<GW;sx++){
+        if(grid[sy][sx]!==1||clusterIds[sy][sx]!==-1)continue;
+        const stack=[[sx,sy]];
+        let size=0,tT=false,tB=false;
+        while(stack.length){
+          const[cx,cy]=stack.pop();
+          if(cx<0||cx>=GW||cy<0||cy>=GH)continue;
+          if(grid[cy][cx]!==1||clusterIds[cy][cx]!==-1)continue;
+          clusterIds[cy][cx]=id;
+          size++;
+          if(cy===0)tT=true;
+          if(cy===GH-1)tB=true;
+          stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+        }
+        clusterInfo.push({size,spans:tT&&tB});
+        id++;
+      }
+    }
+  }
+
+  function draw(){
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    let spanId=-1,spanSize=0;
+    for(let i=0;i<clusterInfo.length;i++){
+      if(clusterInfo[i].spans&&clusterInfo[i].size>spanSize){
+        spanSize=clusterInfo[i].size;
+        spanId=i;
+      }
+    }
+    const cw=w/GW, ch=h/GH;
+    for(let y=0;y<GH;y++){
+      for(let x=0;x<GW;x++){
+        if(grid[y][x]===0)continue;
+        const cid=clusterIds[y][x];
+        if(cid===spanId){
+          ctx.fillStyle='rgb('+AMBER[0]+','+AMBER[1]+','+AMBER[2]+')';
+        }else{
+          const h2=(cid*37)%360;
+          ctx.fillStyle='hsl('+h2+',30%,30%)';
+        }
+        ctx.fillRect(x*cw, y*ch, cw-0.5, ch-0.5);
+      }
+    }
+  }
+
+  function step(){
+    sweepT++;
+    if(sweepT>20){
+      p+=0.004*pDir;
+      if(p>0.8)pDir=-1;
+      if(p<0.3)pDir=1;
+      generateGrid();
+      draw();
+      sweepT=0;
+    }
+    requestAnimationFrame(step);
+  }
+  generateGrid();
+  draw();
+  step();
+})();
+
+// --- Boolean network preview ---
+(function(){
+  const cv=document.getElementById('cv-boolean');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  const N=24, K=2;
+  let conns=[], funcs=[], state=[], t=0;
+
+  function init(){
+    conns=[];funcs=[];
+    for(let i=0;i<N;i++){
+      const pool=[];
+      for(let j=0;j<N;j++)if(j!==i)pool.push(j);
+      for(let j=pool.length-1;j>0;j--){
+        const r=Math.floor(Math.random()*(j+1));
+        [pool[j],pool[r]]=[pool[r],pool[j]];
+      }
+      conns.push(pool.slice(0,K));
+      const lut=[];
+      for(let e=0;e<(1<<K);e++)lut.push(Math.random()<0.5?1:0);
+      funcs.push(lut);
+    }
+    state=[];
+    for(let i=0;i<N;i++)state.push(Math.random()<0.5?1:0);
+  }
+
+  function step(){
+    const ns=[];
+    for(let i=0;i<N;i++){
+      let idx=0;
+      for(let b=0;b<K;b++)idx=(idx<<1)|state[conns[i][b]];
+      ns.push(funcs[i][idx]);
+    }
+    state=ns;
+  }
+
+  function draw(){
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    const cols=N;
+    const colW=w/cols;
+    const rows=30;
+    const rowH=h/rows;
+    // Run and show trail
+    const trail=[];
+    let tmpState=state.slice();
+    for(let r=0;r<rows;r++){
+      trail.push(tmpState.slice());
+      const ns=[];
+      for(let i=0;i<N;i++){
+        let idx=0;
+        for(let b=0;b<K;b++)idx=(idx<<1)|tmpState[conns[i][b]];
+        ns.push(funcs[i][idx]);
+      }
+      tmpState=ns;
+    }
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<N;c++){
+        if(trail[r][c]===1){
+          const alpha=0.3+0.5*(r/rows);
+          ctx.fillStyle='rgba(232,165,71,'+alpha+')';
+          ctx.fillRect(c*colW,r*rowH,colW-0.5,rowH-0.5);
+        }
+      }
+    }
+  }
+
+  function loop(){
+    t++;
+    if(t%3===0){step();draw();}
+    if(t>300){init();draw();t=0;}
+    requestAnimationFrame(loop);
+  }
+  init();
+  draw();
+  loop();
 })();
 </script>
 
