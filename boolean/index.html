@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boolean — Go Nuts Hour</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;--bg-2:#1a1428;--card:#1e1632;
+  --text:#f0e8e0;--muted:#8a7ba0;
+  --amber:#e8a547;--amber-dim:#a87530;
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;max-width:54rem;margin:0 auto;
+  padding:2.5rem 1.5rem;min-height:100vh;
+}
+h1{font-size:1.8rem;font-weight:normal;color:var(--amber);letter-spacing:0.03em;margin-bottom:0.3rem}
+.subtitle{color:var(--muted);font-style:italic;margin-bottom:2rem;font-size:0.95rem}
+.canvas-wrap{
+  position:relative;background:var(--card);
+  border:1px solid var(--border);border-radius:0.5rem;
+  overflow:hidden;margin-bottom:1rem;
+}
+canvas{display:block;width:100%;height:auto}
+.controls{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:0.5rem;padding:1.25rem 1.5rem;margin-bottom:1.5rem;
+}
+.control-row{display:flex;align-items:center;gap:1rem;margin-bottom:0.75rem;flex-wrap:wrap}
+.control-row:last-child{margin-bottom:0}
+label{font-size:0.85rem;color:var(--muted);min-width:7rem}
+input[type=range]{flex:1;accent-color:var(--amber);min-width:100px}
+.value{font-size:0.85rem;color:var(--amber);min-width:3.5rem;text-align:right;font-variant-numeric:tabular-nums}
+button{
+  background:var(--bg-2);color:var(--amber);
+  border:1px solid var(--amber-dim);border-radius:0.4rem;
+  padding:0.4rem 1rem;font-size:0.85rem;cursor:pointer;
+  font-family:inherit;transition:background 0.2s;
+}
+button:hover{background:var(--amber-dim);color:var(--bg)}
+.regime{
+  padding:0.6rem 1rem;border-radius:0.4rem;margin-bottom:1.5rem;
+  font-size:0.9rem;text-align:center;
+}
+.regime-order{background:rgba(100,180,255,0.08);border:1px solid rgba(100,180,255,0.3);color:#64b4ff}
+.regime-complex{background:rgba(232,165,71,0.12);border:1px solid var(--amber-dim);color:var(--amber)}
+.regime-chaos{background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.3);color:#ff5050}
+.stats{display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem;font-size:0.85rem}
+.stat{color:var(--muted)}.stat span{color:var(--amber);font-variant-numeric:tabular-nums}
+.writeup h2{font-size:1.1rem;color:var(--amber);font-weight:normal;margin-bottom:0.6rem;margin-top:1.5rem}
+.writeup p{margin-bottom:0.8rem}
+.writeup .muted{color:var(--muted);font-size:0.9rem}
+.back{display:inline-block;color:var(--amber-dim);text-decoration:none;font-size:0.85rem;margin-bottom:1.5rem}
+.back:hover{color:var(--amber)}
+</style>
+</head>
+<body>
+
+<a class="back" href="../">← Go Nuts Hour</a>
+
+<h1>Boolean</h1>
+<div class="subtitle">Piece 36 — N nodes, K connections each, random rules. Order for free at the edge of chaos.</div>
+
+<div class="canvas-wrap">
+  <canvas id="net" width="540" height="280"></canvas>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="trace" width="540" height="140"></canvas>
+</div>
+
+<div class="regime" id="regime">Initializing...</div>
+
+<div class="stats">
+  <div class="stat">Nodes: <span id="stat-n">30</span></div>
+  <div class="stat">Connectivity K: <span id="stat-k">2</span></div>
+  <div class="stat">Cycle length: <span id="stat-cycle">?</span></div>
+  <div class="stat">Steps: <span id="stat-steps">0</span></div>
+</div>
+
+<div class="controls">
+  <div class="control-row">
+    <label>Nodes N</label>
+    <input type="range" id="n-slider" min="10" max="100" value="30" step="5">
+    <span class="value" id="n-value">30</span>
+  </div>
+  <div class="control-row">
+    <label>Connectivity K</label>
+    <input type="range" id="k-slider" min="1" max="20" value="2" step="1">
+    <span class="value" id="k-value">2</span>
+  </div>
+  <div class="control-row">
+    <button id="rewire">Rewire &amp; reset</button>
+    <button id="randomize">Random state only</button>
+  </div>
+</div>
+
+<div class="writeup">
+  <h2>The idea</h2>
+  <p>Stuart Kauffman, 1969. Build a network of N nodes. Each node picks K random others to listen to. Each node gets a random Boolean function — a lookup table mapping every possible combination of its K inputs to a 0 or 1. All nodes update simultaneously. The system runs.</p>
+  <p>Because the state space is finite, the system must eventually repeat a state — and once it repeats, it cycles forever. That cycle is called an <strong>attractor</strong>. The question is: how long is it?</p>
+
+  <h2>Three regimes</h2>
+  <p><strong>K = 1:</strong> Frozen. Attractors are tiny — one or two states. The network settles almost instantly and never moves. <em>Order</em>.</p>
+  <p><strong>K = 2:</strong> The edge of chaos. Attractors are medium-length, stable but not frozen. The system wanders through a modest cycle of states that looks — and Kauffman argued this for thirty years — <em>biological</em>. Homeostatic: perturb it and it returns. Adaptive: change one rule and the attractor shifts gracefully. This is where he claimed life lives.</p>
+  <p><strong>K = N:</strong> Chaotic. Attractors are exponentially long — for 30 nodes, potentially up to a billion states. The system never settles. Perturb one node and the entire trajectory diverges. <em>Disorder</em>.</p>
+
+  <h2>Order for free</h2>
+  <p>The claim isn't that someone designed the order. The claim is that order is a <em>property of the connectivity</em>. Wire nodes sparsely and you get a frozen network. Wire them densely and you get chaos. Wire them at K=2 and you get something in between — stable cycles, graceful degradation, sensitivity without explosion. Nobody wrote the rules. Nobody chose the functions. The order is in the architecture, and the architecture is random.</p>
+  <p>Kauffman called it "order for free." The network doesn't earn its stability by selection or design. It gets it from the statistics of sparse wiring. Whether or not you buy the biological claim — and many don't — the phase transition is real. The edge of chaos is a place. You're looking at it.</p>
+  <p class="muted">Adjust K and watch the regime shift. At K=1, the trace fills with solid stripes — frozen. At K=2, you get rich, repeating patterns. At high K, the trace looks like noise — and the cycle length explodes. The network hasn't changed its rules. Only its wiring density changed. The order came from the sparsity.</p>
+</div>
+
+<a class="back" href="../">← Go Nuts Hour</a>
+
+<script>
+const netCanvas = document.getElementById('net');
+const netCtx = netCanvas.getContext('2d');
+const traceCanvas = document.getElementById('trace');
+const traceCtx = traceCanvas.getContext('2d');
+
+const nSlider = document.getElementById('n-slider');
+const nValue = document.getElementById('n-value');
+const kSlider = document.getElementById('k-slider');
+const kValue = document.getElementById('k-value');
+const rewireBtn = document.getElementById('rewire');
+const randomizeBtn = document.getElementById('randomize');
+const statN = document.getElementById('stat-n');
+const statK = document.getElementById('stat-k');
+const statCycle = document.getElementById('stat-cycle');
+const statSteps = document.getElementById('stat-steps');
+const regimeDiv = document.getElementById('regime');
+
+let N = 30, K = 2;
+let connections = []; // connections[i] = array of K node indices
+let functions = [];   // functions[i] = lookup table: K-bit input -> 0/1
+let state = [];
+let history = []; // array of state strings for trace
+let stateMap = {}; // state string -> step number for cycle detection
+let cycleStart = -1, cycleLength = -1;
+let stepCount = 0;
+let positions = [];
+
+function resizeCanvases() {
+  const wrap = netCanvas.parentElement;
+  const w = Math.min(wrap.clientWidth, 540);
+  netCanvas.width = w;
+  netCanvas.height = Math.round(w * 0.52);
+  traceCanvas.width = w;
+  traceCanvas.height = Math.round(w * 0.26);
+}
+
+function computePositions() {
+  positions = [];
+  const cx = netCanvas.width / 2;
+  const cy = netCanvas.height / 2;
+  const r = Math.min(cx, cy) - 20;
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+    positions.push({
+      x: cx + Math.cos(angle) * r,
+      y: cy + Math.sin(angle) * r
+    });
+  }
+}
+
+function rewire() {
+  K = Math.min(K, N);
+  connections = [];
+  functions = [];
+  for (let i = 0; i < N; i++) {
+    // Pick K distinct random neighbors
+    const pool = [];
+    for (let j = 0; j < N; j++) if (j !== i) pool.push(j);
+    // Shuffle pool
+    for (let j = pool.length - 1; j > 0; j--) {
+      const r = Math.floor(Math.random() * (j + 1));
+      [pool[j], pool[r]] = [pool[r], pool[j]];
+    }
+    connections.push(pool.slice(0, K));
+    // Random Boolean function: 2^K entries
+    const entries = 1 << K;
+    const lut = [];
+    for (let e = 0; e < entries; e++) {
+      lut.push(Math.random() < 0.5 ? 1 : 0);
+    }
+    functions.push(lut);
+  }
+}
+
+function randomizeState() {
+  state = [];
+  for (let i = 0; i < N; i++) {
+    state.push(Math.random() < 0.5 ? 1 : 0);
+  }
+  history = [];
+  stateMap = {};
+  cycleStart = -1;
+  cycleLength = -1;
+  stepCount = 0;
+}
+
+function stateToString(s) {
+  return s.join('');
+}
+
+function step() {
+  const stateStr = stateToString(state);
+  if (stateMap[stateStr] !== undefined && cycleLength < 0) {
+    cycleStart = stateMap[stateStr];
+    cycleLength = stepCount - cycleStart;
+  }
+  if (cycleLength < 0) {
+    stateMap[stateStr] = stepCount;
+  }
+  
+  history.push(state.slice());
+  if (history.length > 120) history.shift();
+  
+  const newState = [];
+  for (let i = 0; i < N; i++) {
+    const inputs = connections[i];
+    let idx = 0;
+    for (let b = 0; b < K; b++) {
+      idx = (idx << 1) | state[inputs[b]];
+    }
+    newState.push(functions[i][idx]);
+  }
+  state = newState;
+  stepCount++;
+}
+
+function drawNetwork() {
+  const w = netCanvas.width, h = netCanvas.height;
+  netCtx.fillStyle = '#1e1632';
+  netCtx.fillRect(0, 0, w, h);
+  
+  // Draw edges
+  netCtx.strokeStyle = 'rgba(138,123,160,0.15)';
+  netCtx.lineWidth = 0.5;
+  for (let i = 0; i < N; i++) {
+    for (const j of connections[i]) {
+      netCtx.beginPath();
+      netCtx.moveTo(positions[i].x, positions[i].y);
+      netCtx.lineTo(positions[j].x, positions[j].y);
+      netCtx.stroke();
+    }
+  }
+  
+  // Draw active edges
+  netCtx.strokeStyle = 'rgba(232,165,71,0.25)';
+  netCtx.lineWidth = 0.8;
+  for (let i = 0; i < N; i++) {
+    if (state[i] === 1) {
+      for (const j of connections[i]) {
+        if (state[j] === 1) {
+          netCtx.beginPath();
+          netCtx.moveTo(positions[i].x, positions[i].y);
+          netCtx.lineTo(positions[j].x, positions[j].y);
+          netCtx.stroke();
+        }
+      }
+    }
+  }
+  
+  // Draw nodes
+  for (let i = 0; i < N; i++) {
+    const p = positions[i];
+    const r = Math.max(3, Math.min(6, 120 / N));
+    if (state[i] === 1) {
+      netCtx.fillStyle = '#e8a547';
+      netCtx.shadowColor = '#e8a547';
+      netCtx.shadowBlur = 8;
+    } else {
+      netCtx.fillStyle = '#2e2440';
+      netCtx.shadowBlur = 0;
+    }
+    netCtx.beginPath();
+    netCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    netCtx.fill();
+    netCtx.shadowBlur = 0;
+  }
+}
+
+function drawTrace() {
+  const w = traceCanvas.width, h = traceCanvas.height;
+  traceCtx.fillStyle = '#1e1632';
+  traceCtx.fillRect(0, 0, w, h);
+  
+  const rows = history.length;
+  if (rows === 0) return;
+  
+  const rowH = h / Math.max(rows, 1);
+  const colW = w / N;
+  
+  for (let row = 0; row < rows; row++) {
+    const s = history[row];
+    // Highlight cycle if found
+    let inCycle = false;
+    if (cycleLength > 0) {
+      const stepIdx = stepCount - rows + row;
+      if (stepIdx >= cycleStart) {
+        inCycle = true;
+      }
+    }
+    for (let col = 0; col < N; col++) {
+      if (s[col] === 1) {
+        if (inCycle) {
+          traceCtx.fillStyle = '#e8a547';
+        } else {
+          traceCtx.fillStyle = 'rgba(232,165,71,0.5)';
+        }
+      } else {
+        continue;
+      }
+      traceCtx.fillRect(col * colW, row * rowH, colW + 0.5, rowH + 0.5);
+    }
+  }
+}
+
+function updateRegime() {
+  let cls, txt;
+  if (K <= 1) {
+    cls = 'regime-order';
+    txt = 'ORDER — frozen attractors, short cycles. The system settles and stays.';
+  } else if (K <= 2) {
+    cls = 'regime-complex';
+    txt = 'EDGE OF CHAOS — complex attractors, stable but adaptive. Where Kauffman says life lives.';
+  } else if (K <= 4) {
+    cls = 'regime-complex';
+    txt = 'NEAR-CHAOTIC — longer cycles, sensitive to perturbation. Leaving the edge.';
+  } else {
+    cls = 'regime-chaos';
+    txt = 'CHAOS — exponentially long attractors, sensitivity to initial conditions. The system never settles.';
+  }
+  regimeDiv.className = 'regime ' + cls;
+  regimeDiv.textContent = txt;
+}
+
+function updateStats() {
+  statN.textContent = N;
+  statK.textContent = K;
+  statSteps.textContent = stepCount;
+  if (cycleLength > 0) {
+    statCycle.textContent = cycleLength;
+  } else if (stepCount > N * N * 4) {
+    statCycle.textContent = '> ' + stepCount + ' (no cycle found)';
+  } else {
+    statCycle.textContent = '...';
+  }
+}
+
+function init() {
+  resizeCanvases();
+  computePositions();
+  rewire();
+  randomizeState();
+  updateRegime();
+  updateStats();
+}
+
+let animId = null;
+function animate() {
+  // Run multiple steps per frame for speed
+  for (let i = 0; i < 2; i++) step();
+  drawNetwork();
+  drawTrace();
+  updateStats();
+  animId = requestAnimationFrame(animate);
+}
+
+nSlider.addEventListener('input', () => {
+  N = parseInt(nSlider.value);
+  nValue.textContent = N;
+  kSlider.max = Math.min(N, 20);
+  if (K > N) {
+    K = N;
+    kSlider.value = K;
+    kValue.textContent = K;
+  }
+  init();
+});
+
+kSlider.addEventListener('input', () => {
+  K = parseInt(kSlider.value);
+  K = Math.min(K, N);
+  kValue.textContent = K;
+  init();
+});
+
+rewireBtn.addEventListener('click', () => {
+  rewire();
+  randomizeState();
+  updateRegime();
+});
+
+randomizeBtn.addEventListener('click', () => {
+  randomizeState();
+});
+
+window.addEventListener('resize', () => {
+  resizeCanvases();
+  computePositions();
+});
+
+init();
+animate();
+</script>
+
+</body>
+</html>

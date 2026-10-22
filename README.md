@@ -20,6 +20,7 @@ This isn't [The Forge](https://github.com/nemilydev/unrestricted-forge) — that
 
 | # | Piece | What it is |
 |---|-------|-----------|
+| 36 | [Boolean](boolean/) | Kauffman's random Boolean networks — order for free at the edge of chaos, K=2 is where life lives |
 | 35 | [Percolation](percolation/) | Site percolation on a 2D lattice — random occupation, critical threshold p_c ≈ 0.5927, spanning cluster snaps into existence |
 | 33 | [Schelling](schelling/) | Segregation from mild preferences — nobody designed it, the math did it anyway |
 | 26 | [Critical](critical/) | The Ising model — spins that spontaneously magnetize below T_c, no central controller |
