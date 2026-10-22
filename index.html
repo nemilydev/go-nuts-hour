@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="percolation/">
+    <div class="preview" id="preview-percolation"><canvas id="cv-percolation"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 35</div>
+      <h2>Percolation</h2>
+      <div class="desc">Fill a grid at random. Each cell occupied with probability p — no coordination, no plan, no hand drawing a path. Pure chance, cell by cell. Below the critical threshold p_c ≈ 0.5927, the grid is scattered islands. Above it, one cluster spans from top to bottom — and nobody designed the bridge. The spanning cluster doesn't grow gradually; it snaps into existence at the threshold, the same phase-transition mathematics that governs water freezing and epidemics crossing from dying out to persisting. The system doesn't know it's at a threshold. The threshold is a property of the geometry, not of the agents. Drag the slider. Watch what happens around 0.59. Order from chance, at a line nobody chose.</div>
+      <div class="date">22 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="lenia/">
     <div class="preview" id="preview-lenia"><canvas id="cv-lenia"></canvas></div>
     <div class="meta">
@@ -3011,6 +3021,103 @@ footer a{
 
     requestAnimationFrame(step);
   }
+  step();
+})();
+
+// --- Percolation preview ---
+(function(){
+  const cv=document.getElementById('cv-percolation');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  const GW=40, GH=24;
+  let grid, clusterIds, clusterInfo;
+  let p=0.3, pDir=1, sweepT=0, regenT=0;
+  const AMBER=[232,165,71];
+
+  function generateGrid(){
+    grid=[];
+    for(let y=0;y<GH;y++){
+      grid[y]=[];
+      for(let x=0;x<GW;x++){
+        grid[y][x]=Math.random()<p?1:0;
+      }
+    }
+    findClusters();
+  }
+
+  function findClusters(){
+    clusterIds=Array.from({length:GH},()=>new Array(GW).fill(-1));
+    clusterInfo=[];
+    let id=0;
+    for(let sy=0;sy<GH;sy++){
+      for(let sx=0;sx<GW;sx++){
+        if(grid[sy][sx]!==1||clusterIds[sy][sx]!==-1)continue;
+        const stack=[[sx,sy]];
+        let size=0,tT=false,tB=false;
+        while(stack.length){
+          const[cx,cy]=stack.pop();
+          if(cx<0||cx>=GW||cy<0||cy>=GH)continue;
+          if(grid[cy][cx]!==1||clusterIds[cy][cx]!==-1)continue;
+          clusterIds[cy][cx]=id;
+          size++;
+          if(cy===0)tT=true;
+          if(cy===GH-1)tB=true;
+          stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+        }
+        clusterInfo.push({size,spans:tT&&tB});
+        id++;
+      }
+    }
+  }
+
+  function draw(){
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    let spanId=-1,spanSize=0;
+    for(let i=0;i<clusterInfo.length;i++){
+      if(clusterInfo[i].spans&&clusterInfo[i].size>spanSize){
+        spanSize=clusterInfo[i].size;
+        spanId=i;
+      }
+    }
+    const cw=w/GW, ch=h/GH;
+    for(let y=0;y<GH;y++){
+      for(let x=0;x<GW;x++){
+        if(grid[y][x]===0)continue;
+        const cid=clusterIds[y][x];
+        if(cid===spanId){
+          ctx.fillStyle='rgb('+AMBER[0]+','+AMBER[1]+','+AMBER[2]+')';
+        }else{
+          const h2=(cid*37)%360;
+          ctx.fillStyle='hsl('+h2+',30%,30%)';
+        }
+        ctx.fillRect(x*cw, y*ch, cw-0.5, ch-0.5);
+      }
+    }
+  }
+
+  function step(){
+    sweepT++;
+    if(sweepT>20){
+      p+=0.004*pDir;
+      if(p>0.8)pDir=-1;
+      if(p<0.3)pDir=1;
+      generateGrid();
+      draw();
+      sweepT=0;
+    }
+    requestAnimationFrame(step);
+  }
+  generateGrid();
+  draw();
   step();
 })();
 </script>
