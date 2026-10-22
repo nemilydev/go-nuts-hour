@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Percolation — Go Nuts Hour</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#120e1a;
+  --bg-2:#1a1428;
+  --card:#1e1632;
+  --text:#f0e8e0;
+  --muted:#8a7ba0;
+  --amber:#e8a547;
+  --amber-dim:#a87530;
+  --border:#2e2440;
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Georgia','Times New Roman',serif;
+  line-height:1.75;
+  max-width:52rem;
+  margin:0 auto;
+  padding:2.5rem 1.5rem;
+  min-height:100vh;
+}
+h1{font-size:1.8rem;font-weight:normal;color:var(--amber);letter-spacing:0.03em;margin-bottom:0.3rem}
+.subtitle{color:var(--muted);font-style:italic;margin-bottom:2rem;font-size:0.95rem}
+.canvas-wrap{
+  position:relative;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  overflow:hidden;
+  margin-bottom:1.5rem;
+}
+canvas{display:block;width:100%;height:auto}
+.controls{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:0.5rem;
+  padding:1.25rem 1.5rem;
+  margin-bottom:1.5rem;
+}
+.control-row{
+  display:flex;
+  align-items:center;
+  gap:1rem;
+  margin-bottom:0.75rem;
+  flex-wrap:wrap;
+}
+.control-row:last-child{margin-bottom:0}
+label{
+  font-size:0.85rem;
+  color:var(--muted);
+  min-width:6rem;
+}
+input[type=range]{
+  flex:1;
+  accent-color:var(--amber);
+  min-width:120px;
+}
+.value{
+  font-size:0.85rem;
+  color:var(--amber);
+  min-width:3.5rem;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+button{
+  background:var(--bg-2);
+  color:var(--amber);
+  border:1px solid var(--amber-dim);
+  border-radius:0.4rem;
+  padding:0.4rem 1rem;
+  font-size:0.85rem;
+  cursor:pointer;
+  font-family:inherit;
+  transition:background 0.2s;
+}
+button:hover{background:var(--amber-dim);color:var(--bg)}
+.stats{
+  display:flex;
+  gap:2rem;
+  flex-wrap:wrap;
+  margin-bottom:1.5rem;
+  font-size:0.85rem;
+}
+.stat{color:var(--muted)}
+.stat span{color:var(--amber);font-variant-numeric:tabular-nums}
+.writeup{
+  margin-bottom:2rem;
+}
+.writeup h2{
+  font-size:1.1rem;
+  color:var(--amber);
+  font-weight:normal;
+  margin-bottom:0.6rem;
+  margin-top:1.5rem;
+}
+.writeup p{margin-bottom:0.8rem;color:var(--text)}
+.writeup .muted{color:var(--muted);font-size:0.9rem}
+.back{
+  display:inline-block;
+  color:var(--amber-dim);
+  text-decoration:none;
+  font-size:0.85rem;
+  margin-bottom:1.5rem;
+}
+.back:hover{color:var(--amber)}
+.spanning-info{
+  font-size:0.9rem;
+  padding:0.6rem 1rem;
+  border-radius:0.4rem;
+  margin-bottom:1.5rem;
+  display:none;
+}
+.spanning-yes{
+  background:rgba(232,165,71,0.12);
+  border:1px solid var(--amber-dim);
+  color:var(--amber);
+}
+.spanning-no{
+  background:rgba(138,123,160,0.08);
+  border:1px solid var(--border);
+  color:var(--muted);
+}
+</style>
+</head>
+<body>
+
+<a class="back" href="../">← Go Nuts Hour</a>
+
+<h1>Percolation</h1>
+<div class="subtitle">Piece 35 — one probability, one threshold, and a path that either exists or doesn't.</div>
+
+<div class="canvas-wrap">
+  <canvas id="grid" width="600" height="600"></canvas>
+</div>
+
+<div class="stats">
+  <div class="stat">Occupied: <span id="stat-occupied">0%</span></div>
+  <div class="stat">Largest cluster: <span id="stat-largest">0</span></div>
+  <div class="stat">Total clusters: <span id="stat-clusters">0</span></div>
+  <div class="stat">Spanning: <span id="stat-spanning">—</span></div>
+</div>
+
+<div id="spanning-info" class="spanning-info"></div>
+
+<div class="controls">
+  <div class="control-row">
+    <label>Probability p</label>
+    <input type="range" id="p-slider" min="0" max="100" value="59" step="1">
+    <span class="value" id="p-value">0.59</span>
+  </div>
+  <div class="control-row">
+    <label>Grid size</label>
+    <input type="range" id="size-slider" min="20" max="200" value="80" step="10">
+    <span class="value" id="size-value">80</span>
+  </div>
+  <div class="control-row">
+    <button id="regenerate">Regenerate</button>
+    <button id="sweep">Auto-sweep p</button>
+  </div>
+</div>
+
+<div class="writeup">
+  <h2>The question</h2>
+  <p>Fill a grid at random. Each cell is occupied with probability <em>p</em>, independent of every other cell. No coordination, no planning, no hand reaching across the lattice to draw a path. Pure chance, cell by cell.</p>
+  <p>And yet: below a critical probability — <em>p<sub>c</sub></em> ≈ 0.5927 for site percolation on a square lattice — the grid is a scatter of isolated islands. Above it, one cluster spans from top to bottom, and that cluster is not a luxury added on top of the randomness. It <em>is</em> the randomness. Nobody designed the bridge. Probability built it.</p>
+
+  <h2>The phase transition</h2>
+  <p>The shift is not gradual. As <em>p</em> approaches <em>p<sub>c</sub></em> from below, clusters grow. At <em>p<sub>c</sub></em>, the spanning cluster appears — not as a slow thickening but as a sudden birth, the system reorganizing from disconnected fragments to connected whole. This is a <strong>phase transition</strong>, the same mathematics that governs water freezing, magnets magnetizing, and epidemics crossing from dying out to persisting.</p>
+  <p>Drag the slider. Watch what happens around 0.59. The spanning cluster doesn't grow gradually — it snaps into existence, and below that threshold, no amount of extra occupancy connects the grid until the probability crosses the line. Order from chance, at a threshold nobody chose.</p>
+
+  <h2>Why it matters</h2>
+  <p>Percolation is the simplest model that exhibits a phase transition. It's the base layer underneath forest fires (will the fire cross the forest?), epidemiology (will the disease cross the population?), and network resilience (will the internet survive random node failures?). In every case, the same threshold structure: below the critical point, fragmentation. Above it, connection. The system doesn't know it's at a threshold — the threshold is a property of the geometry, not of the agents.</p>
+  <p class="muted">The critical threshold p<sub>c</sub> ≈ 0.592746 is for site percolation on a 2D square lattice. It was not derived analytically — it was found through simulation, the same way you're finding it now.</p>
+</div>
+
+<a class="back" href="../">← Go Nuts Hour</a>
+
+<script>
+const canvas = document.getElementById('grid');
+const ctx = canvas.getContext('2d');
+const pSlider = document.getElementById('p-slider');
+const pValue = document.getElementById('p-value');
+const sizeSlider = document.getElementById('size-slider');
+const sizeValue = document.getElementById('size-value');
+const regenBtn = document.getElementById('regenerate');
+const sweepBtn = document.getElementById('sweep');
+const statOccupied = document.getElementById('stat-occupied');
+const statLargest = document.getElementById('stat-largest');
+const statClusters = document.getElementById('stat-clusters');
+const statSpanning = document.getElementById('stat-spanning');
+const spanningInfo = document.getElementById('spanning-info');
+
+let gridSize = 80;
+let p = 0.59;
+let grid = [];
+let clusterIds = [];
+let clusterSizes = [];
+let colors = [];
+let sweeping = false;
+let sweepDir = 1;
+let sweepP = 0.3;
+let sweepRAF = null;
+
+// Amber palette for clusters
+const AMBER = [232, 165, 71];
+const BG_COLOR = '#1e1632';
+const EMPTY_COLOR = '#120e1a';
+const SPANNING_COLOR = [232, 165, 71];
+const SMALL_CLUSTER_BASE = [138, 123, 160];
+
+function generateColor(clusterId, isSpanning) {
+  if (isSpanning) return `rgb(${AMBER[0]},${AMBER[1]},${AMBER[2]})`;
+  // Vary hue slightly based on cluster id for visual distinction
+  const h = (clusterId * 37) % 360;
+  const s = 30 + (clusterId * 13) % 40;
+  const l = 35 + (clusterId * 7) % 25;
+  return `hsl(${h},${s}%,${l}%)`;
+}
+
+function generateGrid() {
+  grid = [];
+  for (let y = 0; y < gridSize; y++) {
+    const row = [];
+    for (let x = 0; x < gridSize; x++) {
+      row.push(Math.random() < p ? 1 : 0);
+    }
+    grid.push(row);
+  }
+  findClusters();
+  draw();
+  updateStats();
+}
+
+function findClusters() {
+  clusterIds = Array.from({length: gridSize}, () => new Array(gridSize).fill(-1));
+  clusterSizes = [];
+  let currentId = 0;
+  
+  for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < gridSize; x++) {
+      if (grid[y][x] === 1 && clusterIds[y][x] === -1) {
+        // BFS flood fill
+        const stack = [[x, y]];
+        let size = 0;
+        let touchesTop = false;
+        let touchesBottom = false;
+        let touchesLeft = false;
+        let touchesRight = false;
+        
+        while (stack.length > 0) {
+          const [cx, cy] = stack.pop();
+          if (cx < 0 || cx >= gridSize || cy < 0 || cy >= gridSize) continue;
+          if (grid[cy][cx] !== 1 || clusterIds[cy][cx] !== -1) continue;
+          
+          clusterIds[cy][cx] = currentId;
+          size++;
+          
+          if (cy === 0) touchesTop = true;
+          if (cy === gridSize - 1) touchesBottom = true;
+          if (cx === 0) touchesLeft = true;
+          if (cx === gridSize - 1) touchesRight = true;
+          
+          stack.push([cx+1, cy], [cx-1, cy], [cx, cy+1], [cx, cy-1]);
+        }
+        
+        clusterSizes.push({
+          size,
+          spans: touchesTop && touchesBottom,
+          spansHorizontal: touchesLeft && touchesRight,
+          touchesTop,
+          touchesBottom,
+          touchesLeft,
+          touchesRight
+        });
+        currentId++;
+      }
+    }
+  }
+}
+
+function findSpanningCluster() {
+  // Find the largest cluster that spans top-to-bottom
+  let spanningId = -1;
+  let spanningSize = 0;
+  for (let i = 0; i < clusterSizes.length; i++) {
+    if (clusterSizes[i].spans && clusterSizes[i].size > spanningSize) {
+      spanningSize = clusterSizes[i].size;
+      spanningId = i;
+    }
+  }
+  return spanningId;
+}
+
+function draw() {
+  if (!grid || grid.length === 0) return;
+  const cellSize = canvas.width / gridSize;
+  const spanningId = findSpanningCluster();
+  
+  // Precompute colors
+  const colorMap = new Map();
+  for (let i = 0; i < clusterSizes.length; i++) {
+    colorMap.set(i, generateColor(i, i === spanningId));
+  }
+  
+  for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < gridSize; x++) {
+      if (grid[y][x] === 0) {
+        ctx.fillStyle = EMPTY_COLOR;
+      } else {
+        const cid = clusterIds[y][x];
+        ctx.fillStyle = colorMap.get(cid) || EMPTY_COLOR;
+      }
+      ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+    }
+  }
+}
+
+function updateStats() {
+  let occupied = 0;
+  for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < gridSize; x++) {
+      if (grid[y][x] === 1) occupied++;
+    }
+  }
+  const total = gridSize * gridSize;
+  statOccupied.textContent = ((occupied / total) * 100).toFixed(1) + '%';
+  
+  let largest = 0;
+  for (const c of clusterSizes) {
+    if (c.size > largest) largest = c.size;
+  }
+  statLargest.textContent = largest;
+  statClusters.textContent = clusterSizes.length;
+  
+  const spanningId = findSpanningCluster();
+  if (spanningId >= 0) {
+    statSpanning.textContent = 'YES';
+    statSpanning.style.color = '#e8a547';
+    spanningInfo.style.display = 'block';
+    spanningInfo.className = 'spanning-info spanning-yes';
+    spanningInfo.textContent = `Spanning cluster found — cluster #${spanningId} connects top to bottom with ${clusterSizes[spanningId].size} sites (${((clusterSizes[spanningId].size/total)*100).toFixed(1)}% of grid).`;
+  } else {
+    statSpanning.textContent = 'NO';
+    statSpanning.style.color = '#8a7ba0';
+    spanningInfo.style.display = 'block';
+    spanningInfo.className = 'spanning-info spanning-no';
+    spanningInfo.textContent = `No spanning cluster. The grid is fragmented — ${clusterSizes.length} isolated clusters, largest is ${largest} sites.`;
+  }
+}
+
+function startSweep() {
+  if (sweeping) {
+    sweeping = false;
+    sweepBtn.textContent = 'Auto-sweep p';
+    if (sweepRAF) cancelAnimationFrame(sweepRAF);
+    return;
+  }
+  sweeping = true;
+  sweepBtn.textContent = 'Stop sweep';
+  sweepP = 0.3;
+  sweepDir = 1;
+  runSweep();
+}
+
+function runSweep() {
+  if (!sweeping) return;
+  sweepP += 0.003 * sweepDir;
+  if (sweepP > 0.85) sweepDir = -1;
+  if (sweepP < 0.3) sweepDir = 1;
+  p = sweepP;
+  pSlider.value = Math.round(p * 100);
+  pValue.textContent = p.toFixed(2);
+  generateGrid();
+  sweepRAF = requestAnimationFrame(runSweep);
+}
+
+// Make canvas responsive
+function resizeCanvas() {
+  const wrap = canvas.parentElement;
+  const size = Math.min(wrap.clientWidth, 600);
+  canvas.width = size;
+  canvas.height = size;
+  draw();
+}
+
+pSlider.addEventListener('input', () => {
+  p = pSlider.value / 100;
+  pValue.textContent = p.toFixed(2);
+  if (sweeping) {
+    sweeping = false;
+    sweepBtn.textContent = 'Auto-sweep p';
+  }
+  generateGrid();
+});
+
+sizeSlider.addEventListener('input', () => {
+  gridSize = parseInt(sizeSlider.value);
+  sizeValue.textContent = gridSize;
+  generateGrid();
+});
+
+regenBtn.addEventListener('click', generateGrid);
+sweepBtn.addEventListener('click', startSweep);
+
+window.addEventListener('resize', resizeCanvas);
+
+// Init
+generateGrid();
+resizeCanvas();
+</script>
+
+</body>
+</html>
