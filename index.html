@@ -147,6 +147,16 @@ footer a{
 
 <div class="gallery">
 
+  <a class="piece" href="dendrite/">
+    <div class="preview" id="preview-dendrite"><canvas id="cv-dendrite"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 37</div>
+      <h2>Dendrite</h2>
+      <div class="desc">A particle appears on a circle. It walks randomly until it touches the cluster, then sticks. Repeat ten thousand times. That's the entire algorithm — two sentences produce a fractal. The branches aren't designed; they emerge from screening, the fact that random walkers hit protruding tips more often than recessed crevices. Growth concentrates at the extremities and reinforces itself. The same process grows soot, coral, lightning, snowflakes, mineral dendrites, and the blood vessels in your eye. The fractal dimension is about 1.71 — not an integer, not designed, measured. Nobody chose the branches. The random walk chose them.</div>
+      <div class="date">23 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="boolean/">
     <div class="preview" id="preview-boolean"><canvas id="cv-boolean"></canvas></div>
     <div class="meta">
@@ -3213,6 +3223,91 @@ footer a{
     requestAnimationFrame(loop);
   }
   init();
+  draw();
+  loop();
+})();
+
+// --- Dendrite (DLA) preview ---
+(function(){
+  const cv=document.getElementById('cv-dendrite');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  const GW=90,GH=52;
+  let grid=new Uint8Array(GW*GH);
+  let order=new Uint16Array(GW*GH);
+  let count=0,maxR=0;
+  const cx=Math.floor(GW/2),cy=Math.floor(GH/2);
+
+  function reset(){
+    grid=new Uint8Array(GW*GH);
+    order=new Uint16Array(GW*GH);
+    count=0;maxR=0;
+    grid[cy*GW+cx]=1;
+    order[cy*GW+cx]=1;
+    count=1;
+  }
+
+  function color(t){
+    if(t<0.3){const f=t/0.3;return [Math.round(232+f*23),Math.round(165+f*(130-165)),Math.round(71+f*60)];}
+    if(t<0.6){const f=(t-0.3)/0.3;return [Math.round(255-f*60),Math.round(130-f*15),Math.round(131+f*80)];}
+    if(t<0.85){const f=(t-0.6)/0.25;return [Math.round(195-f*40),Math.round(115-f*10),Math.round(211+f*15)];}
+    const f=(t-0.85)/0.15;return [Math.round(155-f*50),Math.round(105+f*20),Math.round(226+f*20)];}
+  }
+
+  function dlaStep(){
+    const sr=Math.max(maxR+3,5),kr=sr*2.5;
+    const a=Math.random()*2*Math.PI;
+    let x=Math.round(cx+Math.cos(a)*sr),y=Math.round(cy+Math.sin(a)*sr);
+    x=Math.max(1,Math.min(GW-2,x));y=Math.max(1,Math.min(GH-2,y));
+    let steps=0;
+    while(steps<500){
+      const idx=y*GW+x;
+      if(grid[idx]===0){
+        if(grid[idx-1]||grid[idx+1]||grid[idx-GW]||grid[idx+GW]){
+          grid[idx]=1;count++;order[idx]=Math.min(count,65535);
+          const dx=x-cx,dy=y-cy,r=Math.sqrt(dx*dx+dy*dy);
+          if(r>maxR)maxR=r;
+          return;
+        }
+      }
+      const d=Math.floor(Math.random()*4);
+      if(d===0)y--;else if(d===1)x++;else if(d===2)y++;else x--;
+      const dx=x-cx,dy=y-cy;
+      if(dx*dx+dy*dy>kr*kr)return;
+      if(x<0||x>=GW||y<0||y>=GH)return;
+      steps++;
+    }
+  }
+
+  function draw(){
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    const cw=w/GW,ch=h/GH;
+    const denom=Math.max(count,200);
+    for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+      if(grid[y*GW+x]){
+        const [r,g,b]=color(order[y*GW+x]/denom);
+        ctx.fillStyle='rgb('+r+','+g+','+b+')';
+        ctx.fillRect(x*cw,y*ch,cw+0.5,ch+0.5);
+      }
+    }
+  }
+
+  function loop(){
+    for(let i=0;i<15;i++)dlaStep();
+    draw();
+    if(maxR>Math.min(GW,GH)*0.45){reset();draw();}
+    requestAnimationFrame(loop);
+  }
+  reset();
   draw();
   loop();
 })();
