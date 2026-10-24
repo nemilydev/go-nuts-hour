@@ -23,7 +23,7 @@
 <div id="hud">⟡ THE LIVING DUNGEON — the maze is not the one you entered</div>
 <div id="pulse"></div>
 <canvas id="screen"></canvas>
-<div id="hint"><span>WASD</span> move · <span>← →</span> turn · <span>P</span> pause the growth · <span>R</span> reseed</div>
+<div id="hint"><span>WASD</span> move · <span>← →</span> turn · <span>P</span> pause the growth · <span>R</span> reseed · <span>any key</span> wakes the dark</div>
 <div id="loading">growing dungeon...</div>
 <div id="touch">
   <div class="tb" data-k="ArrowLeft">←</div><div class="tb" data-k="KeyW">↑</div>
@@ -144,15 +144,16 @@ const player = { x: W >> 1, y: H >> 1, angle: 0 };
 const keys = {};
 
 addEventListener('keydown', e => {
+  if (!audioCtx) initAudio();
   keys[e.code] = true;
   if (e.code === 'KeyP') { paused = !paused; pulseEl.textContent = 'pulse ' + gen + (paused ? ' · held' : ''); }
-  if (e.code === 'KeyR') { seed(); }
+  if (e.code === 'KeyR') { seed(); spawnSprites(); }
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 document.querySelectorAll('.tb').forEach(b => {
   const k = b.dataset.k;
-  b.addEventListener('touchstart', e => { e.preventDefault(); keys[k] = true; }, { passive: false });
+  b.addEventListener('touchstart', e => { e.preventDefault(); if (!audioCtx) initAudio(); keys[k] = true; }, { passive: false });
   b.addEventListener('touchend', e => { e.preventDefault(); keys[k] = false; }, { passive: false });
 });
 
@@ -163,6 +164,7 @@ function torchLevel(t) {
 
 // --- Render ---
 const img = ctx.createImageData(SW, SH);
+const zBuffer = new Float32Array(SW);
 
 function render(t) {
   const buf = img.data;
@@ -214,8 +216,9 @@ function render(t) {
       if (sdx < sdy) { sdx += ddx; mx += stx; side = 0; } else { sdy += ddy; my += sty; side = 1; }
       if (at(mx, my)) hit = 1;
     }
-    if (!hit) continue;
+    if (!hit) { zBuffer[x] = 1e9; continue; }
     const dist = side === 0 ? sdx - ddx : sdy - ddy;
+    zBuffer[x] = dist;
     const lh = Math.min(SH * 2, Math.floor(SH / (dist || 1e-9)));
     const y0 = Math.max(0, HALF_H - (lh >> 1)), y1 = Math.min(SH, HALF_H + (lh >> 1));
     // Texture x-coordinate along the wall
@@ -236,6 +239,195 @@ function render(t) {
   ctx.putImageData(img, 0, 0);
 }
 
+// --- Creatures of the dungeon ---
+// Wispy things that live in the shifting stone. They wander, flee
+// wall-growth, and watch you with amber eyes. Not enemies — inhabitants.
+let moving = false;
+const spriteCanvas = document.createElement('canvas');
+spriteCanvas.width = 32; spriteCanvas.height = 32;
+const sctx = spriteCanvas.getContext('2d');
+const sprites = [];
+const NUM_SPRITES = 5;
+
+function makeCreatureTex() {
+  sctx.clearRect(0, 0, 32, 32);
+  // Dark wispy body
+  sctx.fillStyle = 'rgba(18, 12, 24, 0.9)';
+  sctx.beginPath();
+  sctx.ellipse(16, 18, 9, 11, 0, 0, Math.PI * 2);
+  sctx.fill();
+  // Subtle purple edge
+  sctx.strokeStyle = 'rgba(60, 40, 80, 0.4)';
+  sctx.lineWidth = 1;
+  sctx.stroke();
+  // Glowing amber eyes
+  sctx.shadowColor = '#e8a547';
+  sctx.shadowBlur = 6;
+  sctx.fillStyle = '#e8a547';
+  sctx.fillRect(11, 13, 3, 2);
+  sctx.fillRect(18, 13, 3, 2);
+  sctx.shadowBlur = 0;
+  // Wispy tendrils below
+  sctx.fillStyle = 'rgba(18, 12, 24, 0.5)';
+  sctx.fillRect(12, 27, 2, 4);
+  sctx.fillRect(18, 27, 2, 4);
+  sctx.fillRect(15, 28, 2, 3);
+}
+
+function spawnSprites() {
+  sprites.length = 0;
+  for (let i = 0; i < NUM_SPRITES; i++) {
+    let sx, sy, tries = 0;
+    do {
+      sx = 1 + Math.random() * (W - 2);
+      sy = 1 + Math.random() * (H - 2);
+      tries++;
+    } while (at(Math.floor(sx), Math.floor(sy)) && tries < 200);
+    sprites.push({
+      x: sx, y: sy, dx: 0, dy: 0,
+      wanderTimer: Math.random() * 60,
+      bob: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function updateSprites(dt) {
+  for (const s of sprites) {
+    const cx = Math.floor(s.x), cy = Math.floor(s.y);
+    // If wall grew on us, flee toward open space
+    if (at(cx, cy)) {
+      const a = Math.atan2(player.y - s.y, player.x - player.x) + (Math.random() - 0.5);
+      s.dx = Math.cos(a) * 0.025;
+      s.dy = Math.sin(a) * 0.025;
+      s.wanderTimer = 20;
+    } else {
+      s.wanderTimer -= dt;
+      if (s.wanderTimer <= 0) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 0.004 + Math.random() * 0.008;
+        s.dx = Math.cos(a) * spd;
+        s.dy = Math.sin(a) * spd;
+        s.wanderTimer = 60 + Math.random() * 120;
+      }
+      // Flee nearby walls — gravitate toward open space
+      let fx = 0, fy = 0;
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++)
+          if ((dx || dy) && at(cx + dx, cy + dy)) {
+            fx -= dx; fy -= dy;
+          }
+      if (fx || fy) {
+        const fl = Math.hypot(fx, fy);
+        s.dx += (fx / fl) * 0.003 * dt;
+        s.dy += (fy / fl) * 0.003 * dt;
+      }
+    }
+    // Move with collision — bounce off walls
+    const nx = s.x + s.dx * dt;
+    const ny = s.y + s.dy * dt;
+    if (!at(Math.floor(nx), Math.floor(s.y))) s.x = nx; else s.dx = -s.dx;
+    if (!at(Math.floor(s.x), Math.floor(ny))) s.y = ny; else s.dy = -s.dy;
+    s.x = Math.max(1, Math.min(W - 2, s.x));
+    s.y = Math.max(1, Math.min(H - 2, s.y));
+    s.bob += 0.06 * dt;
+  }
+}
+
+function renderSprites() {
+  ctx.imageSmoothingEnabled = false;
+  // Sort far to near for correct overdraw
+  const sorted = sprites.map(s => ({
+    s, d: (s.x - player.x) * (s.x - player.x) + (s.y - player.y) * (s.y - player.y)
+  })).sort((a, b) => b.d - a.d);
+  for (const entry of sorted) {
+    const s = entry.s, dist = Math.sqrt(entry.d);
+    if (dist < 0.16) continue;
+    let ra = Math.atan2(s.y - player.y, s.x - player.x) - player.angle;
+    while (ra > Math.PI) ra -= Math.PI * 2;
+    while (ra < -Math.PI) ra += Math.PI * 2;
+    if (Math.abs(ra) > FOV / 2 + 0.3) continue;
+    const screenX = (0.5 + Math.tan(ra) / (2 * Math.tan(FOV / 2))) * SW;
+    const sprH = Math.min(SH * 2, SH / dist);
+    const sprW = sprH;
+    const bobY = Math.sin(s.bob) * sprH * 0.04;
+    const y0 = HALF_H - sprH / 2 + bobY;
+    const x0 = Math.floor(screenX - sprW / 2);
+    const x1 = Math.floor(screenX + sprW / 2);
+    const colW = sprW / 32;
+    const fog = Math.max(0.1, Math.min(1, 1 / (1 + dist * 0.16)));
+    ctx.globalAlpha = fog;
+    for (let x = Math.max(0, x0); x < Math.min(SW, x1); x++) {
+      if (dist > zBuffer[x]) continue;
+      const texX = Math.floor((x - x0) / colW);
+      if (texX < 0 || texX >= 32) continue;
+      ctx.drawImage(spriteCanvas, texX, 0, 1, 32, x, y0, 1, sprH);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// --- Audio: the dungeon's voice ---
+// A low drone that tightens as walls close in. Footsteps on stone.
+// All synthesized — no files, no samples, just oscillators and noise.
+let audioCtx = null, droneOsc = null, droneFilter = null, masterGain = null;
+let lastStep = 0;
+
+function initAudio() {
+  if (audioCtx) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  catch (e) { return; }
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.12;
+  masterGain.connect(audioCtx.destination);
+  // Drone: sawtooth through lowpass — the stone breathing
+  droneOsc = audioCtx.createOscillator();
+  droneOsc.type = 'sawtooth';
+  droneOsc.frequency.value = 42;
+  droneFilter = audioCtx.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 180;
+  droneFilter.Q.value = 3;
+  const droneGain = audioCtx.createGain();
+  droneGain.gain.value = 0.25;
+  droneOsc.connect(droneFilter);
+  droneFilter.connect(droneGain);
+  droneGain.connect(masterGain);
+  droneOsc.start();
+}
+
+function updateAudio(t, isMoving) {
+  if (!audioCtx) return;
+  // Wall density near player → drone pitch and filter
+  const px = Math.floor(player.x), py = Math.floor(player.y);
+  let walls = 0;
+  for (let dy = -3; dy <= 3; dy++)
+    for (let dx = -3; dx <= 3; dx++)
+      if ((dx || dy) && at(px + dx, py + dy)) walls++;
+  const density = walls / 48;
+  droneOsc.frequency.setTargetAtTime(38 + density * 44, audioCtx.currentTime, 0.15);
+  droneFilter.frequency.setTargetAtTime(120 + density * 500, audioCtx.currentTime, 0.15);
+  // Footsteps: short noise burst through lowpass, triggered while moving
+  if (isMoving && t - lastStep > 340) {
+    lastStep = t;
+    const dur = 0.08;
+    const buf = audioCtx.createBuffer(1, dur * audioCtx.sampleRate, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const env = Math.exp(-i / (data.length * 0.3));
+      data[i] = (Math.random() * 2 - 1) * env * 0.4;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const sf = audioCtx.createBiquadFilter();
+    sf.type = 'lowpass';
+    sf.frequency.value = 500 + Math.random() * 300;
+    const sg = audioCtx.createGain();
+    sg.gain.value = 0.35;
+    src.connect(sf); sf.connect(sg); sg.connect(masterGain);
+    src.start();
+  }
+}
+
 // --- Update ---
 function update(dt) {
   const spd = (keys.ShiftLeft || keys.ShiftRight ? SPRINT : 1) * MOVE * dt;
@@ -249,6 +441,7 @@ function update(dt) {
   if (keys.KeyA) { vx += ssa; vy -= ca; }
   if (keys.KeyD) { vx -= ssa; vy += ca; }
   const len = Math.hypot(vx, vy);
+  moving = len > 0;
   if (len > 0) {
     vx = vx / len * spd; vy = vy / len * spd;
     // Slide along walls — axis separated
@@ -265,13 +458,18 @@ function loop(now) {
   update(dt);
   frameCount++;
   if (!paused && frameCount % GROW_EVERY === 0) grow();
+  updateSprites(dt);
   render(now);
+  renderSprites();
+  updateAudio(now, moving);
   requestAnimationFrame(loop);
 }
 
 // --- Init ---
 makeTextures();
+makeCreatureTex();
 seed();
+spawnSprites();
 pulseEl.textContent = 'pulse 0';
 loadingEl.style.display = 'none';
 requestAnimationFrame(loop);
