@@ -253,7 +253,43 @@ function hexToRgb(hex) {
   return [r, g, b];
 }
 
-// --- Floor and ceiling textures (procedural, rendered per-row) ---
+// --- Floor texture (cobblestone, sampled by perspective floor casting) ---
+let floorTex = null;
+
+function makeFloorTexture() {
+  const tex = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+  for (let y = 0; y < TEX_SIZE; y++) {
+    for (let x = 0; x < TEX_SIZE; x++) {
+      const i = (y * TEX_SIZE + x) * 4;
+      // Cobblestones: rounded blobs on dark grout
+      const cx = (x % 16) - 8, cy = (y % 16) - 8;
+      const d = Math.sqrt(cx * cx + cy * cy);
+      let r, g, b;
+      if (d > 6.5) {
+        r = 20; g = 16; b = 13;              // grout
+      } else {
+        const n = Math.sin(x * 0.4) * Math.cos(y * 0.35) * 0.5 + 0.5;
+        const base = 34 + n * 22;             // 34–56 warm grey-brown
+        r = base + 8; g = base + 2; b = base - 4;
+      }
+      const noise = (Math.random() - 0.5) * 18;
+      tex.data[i]   = Math.max(0, Math.min(255, r + noise));
+      tex.data[i+1] = Math.max(0, Math.min(255, g + noise));
+      tex.data[i+2] = Math.max(0, Math.min(255, b + noise));
+      tex.data[i+3] = 255;
+    }
+  }
+  floorTex = tex;
+}
+
+// --- Torch flicker: the light source walks with you and never sits still ---
+function torchLevel() {
+  const t = frameCount;
+  return 0.88
+    + 0.07 * Math.sin(t * 0.31)
+    + 0.04 * Math.sin(t * 0.73 + 1.7)
+    + 0.02 * Math.sin(t * 1.71 + 0.4);
+}
 function shadeColor(r, g, b, factor) {
   return [
     Math.max(0, Math.min(255, Math.floor(r * factor))),
@@ -366,15 +402,33 @@ function render() {
       buf[idx] = r; buf[idx+1] = g; buf[idx+2] = b; buf[idx+3] = 255;
     }
   }
-  for (let y = halfH; y < SCREEN_H; y++) {
-    const t = (y - halfH) / halfH;
-    const r = Math.floor(floorTop[0] * (1 - t) + floorBottom[0] * t);
-    const g = Math.floor(floorTop[1] * (1 - t) + floorBottom[1] * t);
-    const b = Math.floor(floorTop[2] * (1 - t) + floorBottom[2] * t);
-    const off = y * SCREEN_W * 4;
-    for (let x = 0; x < SCREEN_W; x++) {
-      const idx = off + x * 4;
-      buf[idx] = r; buf[idx+1] = g; buf[idx+2] = b; buf[idx+3] = 255;
+  // Perspective floor casting — real geometry, not a gradient
+  {
+    const sa = player.angle - FOV / 2;
+    const rayDirX0 = Math.cos(sa), rayDirY0 = Math.sin(sa);
+    const rayDirX1 = Math.cos(sa + FOV), rayDirY1 = Math.sin(sa + FOV);
+    const posZ = 0.5 * SCREEN_H;
+    const torch = torchLevel();
+    for (let y = halfH; y < SCREEN_H; y++) {
+      const p = y - halfH;
+      const rowDist = posZ / p;
+      const fog = Math.max(0.08, Math.min(1, 1.0 / (1.0 + rowDist * 0.15))) * torch;
+      const stepXf = rowDist * (rayDirX1 - rayDirX0) / SCREEN_W;
+      const stepYf = rowDist * (rayDirY1 - rayDirY0) / SCREEN_W;
+      let fx = player.x + rowDist * rayDirX0;
+      let fy = player.y + rowDist * rayDirY0;
+      const off = y * SCREEN_W * 4;
+      for (let x = 0; x < SCREEN_W; x++) {
+        const tx = Math.floor((fx - Math.floor(fx)) * TEX_SIZE);
+        const ty = Math.floor((fy - Math.floor(fy)) * TEX_SIZE);
+        const ti = (ty * TEX_SIZE + tx) * 4;
+        const idx = off + x * 4;
+        buf[idx]   = Math.floor(floorTex.data[ti]   * fog);
+        buf[idx+1] = Math.floor(floorTex.data[ti+1] * fog);
+        buf[idx+2] = Math.floor(floorTex.data[ti+2] * fog);
+        buf[idx+3] = 255;
+        fx += stepXf; fy += stepYf;
+      }
     }
   }
 
@@ -396,7 +450,7 @@ function render() {
     // Fog / distance shading
     const fog = Math.max(0.08, Math.min(1, 1.0 / (1.0 + correctedDist * 0.15)));
     const sideShade = ray.side === 1 ? 0.7 : 1.0;
-    const shade = fog * sideShade;
+    const shade = fog * sideShade * torchLevel();
 
     // Draw textured wall column
     const tex = textures[ray.texId] || textures[0];
@@ -555,6 +609,7 @@ function init() {
   imageData = ctx.createImageData(SCREEN_W, SCREEN_H);
   buf = imageData.data;
   generateTextures();
+  makeFloorTexture();
   player = generateMaze();
   player.angle = 0;
   loadingEl.style.display = 'none';
