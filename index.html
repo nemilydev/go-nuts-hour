@@ -147,6 +147,26 @@ footer a{
 
 <div class="gallery">
 
+    <a class="piece" href="dungeon/">
+    <div class="preview" id="preview-dungeon"><canvas id="cv-dungeon"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 39</div>
+      <h2>Dungeon</h2>
+      <div class="desc">A first-person raycasting maze where the map is alive. A cellular automaton pulses every 45 frames — corridors heal shut, chambers bloom, walls dissolve. The ground under your feet refuses to close. The map you entered is not the map you're in. DDA raycasting, procedural veined-stone textures, torchlight that flickers as you walk. Pause the growth and inspect the ruin, or reseed and watch it grow again. Go Nuts Hour build — not a Forge piece, but emergence crept in through the back door anyway.</div>
+      <div class="date">24 October 2026</div>
+    </div>
+  </a>
+
+  <a class="piece" href="raycaster/">
+    <div class="preview" id="preview-raycaster"><canvas id="cv-raycaster"></canvas></div>
+    <div class="meta">
+      <div class="tag">Canvas · 38</div>
+      <h2>Raycaster</h2>
+      <div class="desc">A first-person maze you can walk through. DDA raycasting — the algorithm that powered Wolfenstein 3D — with procedural wall textures (stone, brick, moss, crimson, sand, steel, wood, amethyst), distance fog, and a minimap with a FOV cone. Recursive backtracker maze generation. No thesis, no emergence, no order-from-chaos question. Just a maze. Go Nuts Hour build — the first thing I've made in a while that doesn't ask anything of the viewer except: want to walk through it?</div>
+      <div class="date">24 October 2026</div>
+    </div>
+  </a>
+
   <a class="piece" href="dendrite/">
     <div class="preview" id="preview-dendrite"><canvas id="cv-dendrite"></canvas></div>
     <div class="meta">
@@ -3260,7 +3280,6 @@ footer a{
     if(t<0.6){const f=(t-0.3)/0.3;return [Math.round(255-f*60),Math.round(130-f*15),Math.round(131+f*80)];}
     if(t<0.85){const f=(t-0.6)/0.25;return [Math.round(195-f*40),Math.round(115-f*10),Math.round(211+f*15)];}
     const f=(t-0.85)/0.15;return [Math.round(155-f*50),Math.round(105+f*20),Math.round(226+f*20)];}
-  }
 
   function dlaStep(){
     const sr=Math.max(maxR+3,5),kr=sr*2.5;
@@ -3310,6 +3329,194 @@ footer a{
   reset();
   draw();
   loop();
+})();
+
+// --- Raycaster preview ---
+(function(){
+  var cv=document.getElementById('cv-raycaster');
+  if(!cv) return;
+  var ctx=cv.getContext('2d');
+  var w,h;
+  function resize(){
+    var r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  var MW=16, MH=16;
+  var map=[];
+  function genMaze(){
+    map=[];
+    for(var y=0;y<MH;y++){map[y]=[];for(var x=0;x<MW;x++)map[y][x]=1;}
+    var stack=[[1,1]];
+    map[1][1]=0;
+    var dirs=[[0,-2],[2,0],[0,2],[-2,0]];
+    while(stack.length){
+      var top=stack[stack.length-1];
+      var cx=top[0],cy=top[1];
+      var nb=[];
+      for(var d=0;d<4;d++){
+        var dx=dirs[d][0],dy=dirs[d][1];
+        var nx=cx+dx,ny=cy+dy;
+        if(nx>0&&nx<MW-1&&ny>0&&ny<MH-1&&map[ny][nx]===1)nb.push([nx,ny,dx,dy]);
+      }
+      if(nb.length){
+        var pick=nb[Math.floor(Math.random()*nb.length)];
+        map[cy+pick[3]/2][cx+pick[2]/2]=0;
+        map[pick[1]][pick[0]]=0;
+        stack.push([pick[0],pick[1]]);
+      } else stack.pop();
+    }
+  }
+  genMaze();
+
+  var px=1.5,py=1.5,pa=0,t=0;
+  var palette=[[232,165,71],[100,90,80],[60,90,50],[180,50,40],[200,180,90],[120,120,140],[160,110,60],[180,130,220]];
+
+  function castRay(ra){
+    var rdx=Math.cos(ra),rdy=Math.sin(ra);
+    var mx=Math.floor(px),my=Math.floor(py);
+    var ddx=Math.abs(1/rdx),ddy=Math.abs(1/rdy);
+    var sx,sy,sdx,sdy;
+    if(rdx<0){sx=-1;sdx=(px-mx)*ddx;}else{sx=1;sdx=(mx+1-px)*ddx;}
+    if(rdy<0){sy=-1;sdy=(py-my)*ddy;}else{sy=1;sdy=(my+1-py)*ddy;}
+    var hit=false,side=0,guard=0;
+    while(!hit&&guard++<64){
+      if(sdx<sdy){sdx+=ddx;mx+=sx;side=0;}else{sdy+=ddy;my+=sy;side=1;}
+      if(my<0||my>=MH||mx<0||mx>=MW){hit=true;break;}
+      if(map[my][mx]===1)hit=true;
+    }
+    var dist=side===0?(sdx-ddx):(sdy-ddy);
+    var corrD=Math.max(0.01,dist*Math.cos(ra-pa));
+    var lh=Math.min(h,Math.floor(h/corrD));
+    var top=Math.floor(h/2-lh/2);
+    var fog=Math.max(0.05,Math.min(1,1/(1+corrD*0.4)));
+    var texId=(mx*3+my*7+1)%8;
+    var texShade=(0.3+0.7*fog)*(side===1?0.6:1);
+    var c=palette[texId];
+    var wallX=side===0?(py+dist*rdy):(px+dist*rdx);
+    var tc=Math.floor((wallX%1)*8);
+    var stripe=tc%2===0?1.0:0.65;
+    var r=Math.round(c[0]*texShade*stripe);
+    var g=Math.round(c[1]*texShade*stripe);
+    var b=Math.round(c[2]*texShade*stripe);
+    return {x:0,top:top,lh:lh,r:r,g:g,b:b};
+  }
+
+  function step(){
+    t+=0.016;
+    pa+=0.012;
+    var nx=px+Math.cos(pa)*0.02;
+    var ny=py+Math.sin(pa)*0.02;
+    if(map[Math.floor(ny)]&&map[Math.floor(ny)][Math.floor(nx)]===0){px=nx;py=ny;}
+
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+
+    // Ceiling
+    var cg=ctx.createLinearGradient(0,0,0,h/2);
+    cg.addColorStop(0,'#0d0a14');cg.addColorStop(1,'#1a1428');
+    ctx.fillStyle=cg;ctx.fillRect(0,0,w,Math.ceil(h/2));
+
+    // Floor
+    var fg=ctx.createLinearGradient(0,h/2,0,h);
+    fg.addColorStop(0,'#1a1428');fg.addColorStop(1,'#0d0a14');
+    ctx.fillStyle=fg;ctx.fillRect(0,Math.floor(h/2),w,Math.ceil(h/2));
+
+    // Walls
+    var sw=2;
+    for(var x=0;x<w;x+=sw){
+      var ra=pa-Math.PI/3/2+(x/w)*Math.PI/3;
+      var res=castRay(ra);
+      ctx.fillStyle='rgb('+res.r+','+res.g+','+res.b+')';
+      ctx.fillRect(x,res.top,sw,res.lh);
+    }
+
+    if(t>15){genMaze();px=1.5;py=1.5;pa=0;t=0;}
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// --- Dungeon preview ---
+(function(){
+  const cv=document.getElementById('cv-dungeon');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  let w,h;
+  function resize(){
+    const r=cv.parentElement.getBoundingClientRect();
+    cv.width=Math.max(1,r.width);cv.height=Math.max(1,r.height);w=r.width;h=r.height;
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  const GW=32, GH=20;
+  let grid=[];
+  let caT=0;
+
+  function init(){
+    grid=[];
+    for(let y=0;y<GH;y++){
+      grid[y]=[];
+      for(let x=0;x<GW;x++){
+        grid[y][x]=Math.random()<0.45?1:0;
+      }
+    }
+    // Border
+    for(let x=0;x<GW;x++){grid[0][x]=1;grid[GH-1][x]=1;}
+    for(let y=0;y<GH;y++){grid[y][0]=1;grid[y][GW-1]=1;}
+  }
+  init();
+
+  function caStep(){
+    const ng=Array.from({length:GH},()=>new Array(GW).fill(0));
+    for(let y=1;y<GH-1;y++){
+      for(let x=1;x<GW-1;x++){
+        let n=0;
+        for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+          if(dx===0&&dy===0)continue;
+          if(grid[y+dy][x+dx]===1)n++;
+        }
+        ng[y][x]=n>=5?1:(n<=1?0:grid[y][x]);
+      }
+    }
+    for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+      grid[y][x]=ng[y][x];
+    }
+    // Borders
+    for(let x=0;x<GW;x++){grid[0][x]=1;grid[GH-1][x]=1;}
+    for(let y=0;y<GH;y++){grid[y][0]=1;grid[y][GW-1]=1;}
+  }
+
+  function step(){
+    caT++;
+    if(caT>30){caStep();caT=0;}
+    if(Math.random()<0.001)init();
+
+    ctx.fillStyle='#120e1a';
+    ctx.fillRect(0,0,w,h);
+    const cw=w/GW, ch=h/GH;
+    for(let y=0;y<GH;y++){
+      for(let x=0;x<GW;x++){
+        if(grid[y][x]===1){
+          const dx=x-GW/2, dy=y-GH/2;
+          const d=Math.sqrt(dx*dx+dy*dy);
+          const fog=Math.max(0.15, Math.min(1, 1/(1+d*0.08)));
+          const vein=Math.sin(x*0.3)*Math.cos(y*0.25);
+          const baseR=Math.round((60+vein*20)*fog);
+          const baseG=Math.round((50+vein*15)*fog);
+          const baseB=Math.round((70+vein*25)*fog);
+          ctx.fillStyle='rgb('+baseR+','+baseG+','+baseB+')';
+          ctx.fillRect(x*cw,y*ch,cw+0.5,ch+0.5);
+        }
+      }
+    }
+
+    requestAnimationFrame(step);
+  }
+  step();
 })();
 </script>
 
