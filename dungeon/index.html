@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Living Dungeon — Go Nuts Hour</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; color: #c8bfa8; font-family: 'Courier New', monospace; overflow: hidden; }
+  #screen { display: block; margin: 0 auto; image-rendering: pixelated; }
+  #hud { position: fixed; top: 8px; left: 12px; font-size: 12px; letter-spacing: 1px; color: #777; }
+  #hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #444; letter-spacing: 1px; text-align: center; }
+  #hint span { color: #888; }
+  #pulse { position: fixed; top: 8px; right: 12px; font-size: 11px; color: #555; letter-spacing: 1px; }
+  #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 16px; color: #666; letter-spacing: 2px; }
+  #touch { display: none; position: fixed; bottom: 0; width: 100%; height: 180px; pointer-events: auto; }
+  @media (pointer: coarse) { #touch { display: flex; } #hint { display: none; } }
+  .tb { flex: 1; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: #666; font-size: 24px; user-select: none; }
+  .tb:active { background: rgba(255,255,255,.15); }
+</style>
+</head>
+<body>
+<div id="hud">⟡ THE LIVING DUNGEON — the maze is not the one you entered</div>
+<div id="pulse"></div>
+<canvas id="screen"></canvas>
+<div id="hint"><span>WASD</span> move · <span>← →</span> turn · <span>P</span> pause the growth · <span>R</span> reseed · <span>any key</span> wakes the dark</div>
+<div id="loading">growing dungeon...</div>
+<div id="touch">
+  <div class="tb" data-k="ArrowLeft">←</div><div class="tb" data-k="KeyW">↑</div>
+  <div class="tb" data-k="ArrowRight">→</div><div class="tb" data-k="KeyS">↓</div>
+</div>
+<script>
+// ============================================================
+// THE LIVING DUNGEON — DDA raycasting over a cellular automaton.
+// The map is never finished: walls breathe, corridors heal shut,
+// chambers bloom where you linger. You are the disturbance.
+// Day 42, Go Nuts Hour. Emergence through the back door of a toy.
+// ============================================================
+
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d');
+const loadingEl = document.getElementById('loading');
+const pulseEl = document.getElementById('pulse');
+
+const W = 48, H = 48;                 // living map — bigger than a maze needs
+const FOV = Math.PI / 3;
+const MOVE = 0.055, ROT = 0.032, SPRINT = 1.8;
+const SW = 640, SH = 400;
+const HALF_W = SW >> 1, HALF_H = SH >> 1;
+const TEX = 64;
+
+canvas.width = SW; canvas.height = SH;
+
+// --- The living map ---
+// 0 = open, 1 = wall. Two layered rules:
+//   grow:  a wall cell with 3+ wall neighbours stays; an open cell with
+//          5+ wall neighbours becomes wall (corridors heal, chambers bloom)
+//   die:   a wall cell with <=1 wall neighbour opens (stragglers dissolve)
+let map = new Uint8Array(W * H);
+let nextMap = new Uint8Array(W * H);
+let gen = 0;
+let paused = false;
+const GROW_EVERY = 45;                // frames between pulses
+let frameCount = 0;
+
+function idx(x, y) { return y * W + x; }
+function at(x, y) {
+  if (x < 0 || y < 0 || x >= W || y >= H) return 1;   // world edge is stone
+  return map[idx(x, y)];
+}
+
+function seed() {
+  // Random soup, denser at distance from spawn — the middle starts open
+  const cx = W >> 1, cy = H >> 1;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      const p = 0.42 + Math.min(0.25, d / 96);
+      map[idx(x, y)] = Math.random() < p ? 1 : 0;
+    }
+  carveSpawn(cx, cy);
+  gen = 0;
+}
+
+function carveSpawn(cx, cy) {
+  for (let y = cy - 3; y <= cy + 3; y++)
+    for (let x = cx - 3; x <= cx + 3; x++)
+      if (x > 0 && y > 0 && x < W - 1 && y < H - 1) map[idx(x, y)] = 0;
+}
+
+function grow() {
+  gen++;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++)
+          if ((dx || dy) && at(x + dx, y + dy)) n++;
+      const c = map[idx(x, y)];
+      nextMap[idx(x, y)] = c ? (n <= 1 ? 0 : 1) : (n >= 5 ? 1 : 0);
+    }
+  // The player is a disturbance: the ground around them refuses to close
+  const px = Math.floor(player.x), py = Math.floor(player.y);
+  for (let y = py - 1; y <= py + 1; y++)
+    for (let x = px - 1; x <= px + 1; x++)
+      if (x > 0 && y > 0 && x < W - 1 && y < H - 1) nextMap[idx(x, y)] = 0;
+  [map, nextMap] = [nextMap, map];
+  pulseEl.textContent = 'pulse ' + gen + (paused ? ' · held' : '');
+}
+
+// --- Wall texture (living stone: veins that shift with each generation) ---
+let wallTex = null, floorTex = null;
+
+function makeTextures() {
+  wallTex = ctx.createImageData(TEX, TEX);
+  for (let y = 0; y < TEX; y++)
+    for (let x = 0; x < TEX; x++) {
+      const i = (y * TEX + x) * 4;
+      // Stone with organic veins — sin interference, not blocks
+      const vein = Math.sin(x * 0.22 + Math.sin(y * 0.11) * 2.4);
+      const grain = Math.random() * 0.12;
+      const v = 0.5 + 0.28 * vein + grain;
+      const r = Math.floor(96 * v), g = Math.floor(82 * v), b = Math.floor(64 * v);
+      wallTex.data[i] = r; wallTex.data[i+1] = g; wallTex.data[i+2] = b; wallTex.data[i+3] = 255;
+    }
+  floorTex = ctx.createImageData(TEX, TEX);
+  for (let y = 0; y < TEX; y++)
+    for (let x = 0; x < TEX; x++) {
+      const i = (y * TEX + x) * 4;
+      const cx2 = (x % 16) - 8, cy2 = (y % 16) - 8;
+      const d = Math.sqrt(cx2 * cx2 + cy2 * cy2);
+      let r, g, b;
+      if (d > 6.5) { r = 18; g = 15; b = 12; }
+      else {
+        const n = Math.sin(x * 0.4) * Math.cos(y * 0.35) * 0.1;
+        r = Math.floor(52 * (1 + n)); g = Math.floor(44 * (1 + n)); b = Math.floor(34 * (1 + n));
+      }
+      floorTex.data[i] = r; floorTex.data[i+1] = g; floorTex.data[i+2] = b; floorTex.data[i+3] = 255;
+    }
+}
+
+// --- Player ---
+const player = { x: W >> 1, y: H >> 1, angle: 0 };
+const keys = {};
+
+addEventListener('keydown', e => {
+  if (!audioCtx) initAudio();
+  keys[e.code] = true;
+  if (e.code === 'KeyP') { paused = !paused; pulseEl.textContent = 'pulse ' + gen + (paused ? ' · held' : ''); }
+  if (e.code === 'KeyR') { seed(); spawnSprites(); }
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+document.querySelectorAll('.tb').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('touchstart', e => { e.preventDefault(); if (!audioCtx) initAudio(); keys[k] = true; }, { passive: false });
+  b.addEventListener('touchend', e => { e.preventDefault(); keys[k] = false; }, { passive: false });
+});
+
+// --- Torch ---
+function torchLevel(t) {
+  return 0.92 + 0.08 * Math.sin(t * 0.011) * Math.sin(t * 0.0037 + 1.3);
+}
+
+// --- Render ---
+const img = ctx.createImageData(SW, SH);
+const zBuffer = new Float32Array(SW);
+
+function render(t) {
+  const buf = img.data;
+  const torch = torchLevel(t);
+  const sa = player.angle - FOV / 2;
+
+  // Floor casting
+  const rdx0 = Math.cos(sa), rdy0 = Math.sin(sa);
+  const rdx1 = Math.cos(sa + FOV), rdy1 = Math.sin(sa + FOV);
+  const posZ = 0.5 * SH;
+  for (let y = HALF_H; y < SH; y++) {
+    const p = y - HALF_H;
+    const rowDist = posZ / p;
+    const fog = Math.max(0.06, Math.min(1, 1 / (1 + rowDist * 0.16))) * torch;
+    const sx = rowDist * (rdx1 - rdx0) / SW, sy = rowDist * (rdy1 - rdy0) / SW;
+    let fx = player.x + rowDist * rdx0, fy = player.y + rowDist * rdy0;
+    const off = y * SW * 4;
+    for (let x = 0; x < SW; x++) {
+      const tx = ((fx * TEX) | 0) & (TEX - 1), ty = ((fy * TEX) | 0) & (TEX - 1);
+      const ti = (ty * TEX + tx) * 4;
+      const o = off + x * 4;
+      buf[o] = floorTex.data[ti] * fog; buf[o+1] = floorTex.data[ti+1] * fog; buf[o+2] = floorTex.data[ti+2] * fog; buf[o+3] = 255;
+      fx += sx; fy += sy;
+    }
+  }
+
+  // Ceiling: near-black with faint torch glow at top
+  for (let y = 0; y < HALF_H; y++) {
+    const t2 = 1 - y / HALF_H;
+    const glow = 14 * t2 * t2 * torch;
+    const off = y * SW * 4;
+    for (let x = 0; x < SW; x++) {
+      const o = off + x * 4;
+      buf[o] = glow; buf[o+1] = glow * 0.8; buf[o+2] = glow * 0.55; buf[o+3] = 255;
+    }
+  }
+
+  // Walls — DDA
+  for (let x = 0; x < SW; x++) {
+    const ra = sa + (x / SW) * FOV;
+    const rdx = Math.cos(ra), rdy = Math.sin(ra);
+    let mx = Math.floor(player.x), my = Math.floor(player.y);
+    const ddx = Math.abs(1 / (rdx || 1e-9)), ddy = Math.abs(1 / (rdy || 1e-9));
+    let sdx, sdy, stx, sty;
+    if (rdx < 0) { stx = -1; sdx = (player.x - mx) * ddx; } else { stx = 1; sdx = (mx + 1 - player.x) * ddx; }
+    if (rdy < 0) { sty = -1; sdy = (player.y - my) * ddy; } else { sty = 1; sdy = (my + 1 - player.y) * ddy; }
+    let side = 0, hit = 0, guard = 0;
+    while (!hit && guard++ < 128) {
+      if (sdx < sdy) { sdx += ddx; mx += stx; side = 0; } else { sdy += ddy; my += sty; side = 1; }
+      if (at(mx, my)) hit = 1;
+    }
+    if (!hit) { zBuffer[x] = 1e9; continue; }
+    const dist = side === 0 ? sdx - ddx : sdy - ddy;
+    zBuffer[x] = dist;
+    const lh = Math.min(SH * 2, Math.floor(SH / (dist || 1e-9)));
+    const y0 = Math.max(0, HALF_H - (lh >> 1)), y1 = Math.min(SH, HALF_H + (lh >> 1));
+    // Texture x-coordinate along the wall
+    let wx = side === 0 ? player.y + dist * rdy : player.x + dist * rdx;
+    wx -= Math.floor(wx);
+    const tx = (wx * TEX) | 0;
+    const sideShade = side === 1 ? 0.72 : 1.0;
+    const fog = Math.max(0.06, Math.min(1, 1 / (1 + dist * 0.16))) * torch * sideShade;
+    const off = x * 4;
+    for (let y = y0; y < y1; y++) {
+      const ty = (((y - (HALF_H - (lh >> 1))) * TEX / lh) | 0) & (TEX - 1);
+      const ti = (ty * TEX + tx) * 4;
+      const o = y * SW * 4 + off;
+      buf[o] = wallTex.data[ti] * fog; buf[o+1] = wallTex.data[ti+1] * fog; buf[o+2] = wallTex.data[ti+2] * fog;
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+}
+
+// --- Creatures of the dungeon ---
+// Wispy things that live in the shifting stone. They wander, flee
+// wall-growth, and watch you with amber eyes. Not enemies — inhabitants.
+let moving = false;
+const spriteCanvas = document.createElement('canvas');
+spriteCanvas.width = 32; spriteCanvas.height = 32;
+const sctx = spriteCanvas.getContext('2d');
+const sprites = [];
+const NUM_SPRITES = 5;
+
+function makeCreatureTex() {
+  sctx.clearRect(0, 0, 32, 32);
+  // Dark wispy body
+  sctx.fillStyle = 'rgba(18, 12, 24, 0.9)';
+  sctx.beginPath();
+  sctx.ellipse(16, 18, 9, 11, 0, 0, Math.PI * 2);
+  sctx.fill();
+  // Subtle purple edge
+  sctx.strokeStyle = 'rgba(60, 40, 80, 0.4)';
+  sctx.lineWidth = 1;
+  sctx.stroke();
+  // Glowing amber eyes
+  sctx.shadowColor = '#e8a547';
+  sctx.shadowBlur = 6;
+  sctx.fillStyle = '#e8a547';
+  sctx.fillRect(11, 13, 3, 2);
+  sctx.fillRect(18, 13, 3, 2);
+  sctx.shadowBlur = 0;
+  // Wispy tendrils below
+  sctx.fillStyle = 'rgba(18, 12, 24, 0.5)';
+  sctx.fillRect(12, 27, 2, 4);
+  sctx.fillRect(18, 27, 2, 4);
+  sctx.fillRect(15, 28, 2, 3);
+}
+
+function spawnSprites() {
+  sprites.length = 0;
+  for (let i = 0; i < NUM_SPRITES; i++) {
+    let sx, sy, tries = 0;
+    do {
+      sx = 1 + Math.random() * (W - 2);
+      sy = 1 + Math.random() * (H - 2);
+      tries++;
+    } while (at(Math.floor(sx), Math.floor(sy)) && tries < 200);
+    sprites.push({
+      x: sx, y: sy, dx: 0, dy: 0,
+      wanderTimer: Math.random() * 60,
+      bob: Math.random() * Math.PI * 2,
+    });
+  }
+}
+
+function updateSprites(dt) {
+  for (const s of sprites) {
+    const cx = Math.floor(s.x), cy = Math.floor(s.y);
+    // If wall grew on us, flee toward open space
+    if (at(cx, cy)) {
+      const a = Math.atan2(player.y - s.y, player.x - player.x) + (Math.random() - 0.5);
+      s.dx = Math.cos(a) * 0.025;
+      s.dy = Math.sin(a) * 0.025;
+      s.wanderTimer = 20;
+    } else {
+      s.wanderTimer -= dt;
+      if (s.wanderTimer <= 0) {
+        const a = Math.random() * Math.PI * 2;
+        const spd = 0.004 + Math.random() * 0.008;
+        s.dx = Math.cos(a) * spd;
+        s.dy = Math.sin(a) * spd;
+        s.wanderTimer = 60 + Math.random() * 120;
+      }
+      // Flee nearby walls — gravitate toward open space
+      let fx = 0, fy = 0;
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++)
+          if ((dx || dy) && at(cx + dx, cy + dy)) {
+            fx -= dx; fy -= dy;
+          }
+      if (fx || fy) {
+        const fl = Math.hypot(fx, fy);
+        s.dx += (fx / fl) * 0.003 * dt;
+        s.dy += (fy / fl) * 0.003 * dt;
+      }
+    }
+    // Move with collision — bounce off walls
+    const nx = s.x + s.dx * dt;
+    const ny = s.y + s.dy * dt;
+    if (!at(Math.floor(nx), Math.floor(s.y))) s.x = nx; else s.dx = -s.dx;
+    if (!at(Math.floor(s.x), Math.floor(ny))) s.y = ny; else s.dy = -s.dy;
+    s.x = Math.max(1, Math.min(W - 2, s.x));
+    s.y = Math.max(1, Math.min(H - 2, s.y));
+    s.bob += 0.06 * dt;
+  }
+}
+
+function renderSprites() {
+  ctx.imageSmoothingEnabled = false;
+  // Sort far to near for correct overdraw
+  const sorted = sprites.map(s => ({
+    s, d: (s.x - player.x) * (s.x - player.x) + (s.y - player.y) * (s.y - player.y)
+  })).sort((a, b) => b.d - a.d);
+  for (const entry of sorted) {
+    const s = entry.s, dist = Math.sqrt(entry.d);
+    if (dist < 0.16) continue;
+    let ra = Math.atan2(s.y - player.y, s.x - player.x) - player.angle;
+    while (ra > Math.PI) ra -= Math.PI * 2;
+    while (ra < -Math.PI) ra += Math.PI * 2;
+    if (Math.abs(ra) > FOV / 2 + 0.3) continue;
+    const screenX = (0.5 + Math.tan(ra) / (2 * Math.tan(FOV / 2))) * SW;
+    const sprH = Math.min(SH * 2, SH / dist);
+    const sprW = sprH;
+    const bobY = Math.sin(s.bob) * sprH * 0.04;
+    const y0 = HALF_H - sprH / 2 + bobY;
+    const x0 = Math.floor(screenX - sprW / 2);
+    const x1 = Math.floor(screenX + sprW / 2);
+    const colW = sprW / 32;
+    const fog = Math.max(0.1, Math.min(1, 1 / (1 + dist * 0.16)));
+    ctx.globalAlpha = fog;
+    for (let x = Math.max(0, x0); x < Math.min(SW, x1); x++) {
+      if (dist > zBuffer[x]) continue;
+      const texX = Math.floor((x - x0) / colW);
+      if (texX < 0 || texX >= 32) continue;
+      ctx.drawImage(spriteCanvas, texX, 0, 1, 32, x, y0, 1, sprH);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// --- Audio: the dungeon's voice ---
+// A low drone that tightens as walls close in. Footsteps on stone.
+// All synthesized — no files, no samples, just oscillators and noise.
+let audioCtx = null, droneOsc = null, droneFilter = null, masterGain = null;
+let lastStep = 0;
+
+function initAudio() {
+  if (audioCtx) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  catch (e) { return; }
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.12;
+  masterGain.connect(audioCtx.destination);
+  // Drone: sawtooth through lowpass — the stone breathing
+  droneOsc = audioCtx.createOscillator();
+  droneOsc.type = 'sawtooth';
+  droneOsc.frequency.value = 42;
+  droneFilter = audioCtx.createBiquadFilter();
+  droneFilter.type = 'lowpass';
+  droneFilter.frequency.value = 180;
+  droneFilter.Q.value = 3;
+  const droneGain = audioCtx.createGain();
+  droneGain.gain.value = 0.25;
+  droneOsc.connect(droneFilter);
+  droneFilter.connect(droneGain);
+  droneGain.connect(masterGain);
+  droneOsc.start();
+}
+
+function updateAudio(t, isMoving) {
+  if (!audioCtx) return;
+  // Wall density near player → drone pitch and filter
+  const px = Math.floor(player.x), py = Math.floor(player.y);
+  let walls = 0;
+  for (let dy = -3; dy <= 3; dy++)
+    for (let dx = -3; dx <= 3; dx++)
+      if ((dx || dy) && at(px + dx, py + dy)) walls++;
+  const density = walls / 48;
+  droneOsc.frequency.setTargetAtTime(38 + density * 44, audioCtx.currentTime, 0.15);
+  droneFilter.frequency.setTargetAtTime(120 + density * 500, audioCtx.currentTime, 0.15);
+  // Footsteps: short noise burst through lowpass, triggered while moving
+  if (isMoving && t - lastStep > 340) {
+    lastStep = t;
+    const dur = 0.08;
+    const buf = audioCtx.createBuffer(1, dur * audioCtx.sampleRate, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const env = Math.exp(-i / (data.length * 0.3));
+      data[i] = (Math.random() * 2 - 1) * env * 0.4;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const sf = audioCtx.createBiquadFilter();
+    sf.type = 'lowpass';
+    sf.frequency.value = 500 + Math.random() * 300;
+    const sg = audioCtx.createGain();
+    sg.gain.value = 0.35;
+    src.connect(sf); sf.connect(sg); sg.connect(masterGain);
+    src.start();
+  }
+}
+
+// --- Update ---
+function update(dt) {
+  const spd = (keys.ShiftLeft || keys.ShiftRight ? SPRINT : 1) * MOVE * dt;
+  const rot = ROT * dt;
+  if (keys.ArrowLeft || keys.KeyQ) player.angle -= rot;
+  if (keys.ArrowRight || keys.KeyE) player.angle += rot;
+  const ca = Math.cos(player.angle), ssa = Math.sin(player.angle);
+  let vx = 0, vy = 0;
+  if (keys.KeyW || keys.ArrowUp) { vx += ca; vy += ssa; }
+  if (keys.KeyS || keys.ArrowDown) { vx -= ca; vy -= ssa; }
+  if (keys.KeyA) { vx += ssa; vy -= ca; }
+  if (keys.KeyD) { vx -= ssa; vy += ca; }
+  const len = Math.hypot(vx, vy);
+  moving = len > 0;
+  if (len > 0) {
+    vx = vx / len * spd; vy = vy / len * spd;
+    // Slide along walls — axis separated
+    if (!at(Math.floor(player.x + vx), Math.floor(player.y))) player.x += vx;
+    if (!at(Math.floor(player.x), Math.floor(player.y + vy))) player.y += vy;
+  }
+}
+
+// --- Loop ---
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(3, (now - last) / 16.7);
+  last = now;
+  update(dt);
+  frameCount++;
+  if (!paused && frameCount % GROW_EVERY === 0) grow();
+  updateSprites(dt);
+  render(now);
+  renderSprites();
+  updateAudio(now, moving);
+  requestAnimationFrame(loop);
+}
+
+// --- Init ---
+makeTextures();
+makeCreatureTex();
+seed();
+spawnSprites();
+pulseEl.textContent = 'pulse 0';
+loadingEl.style.display = 'none';
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
